@@ -1,7 +1,8 @@
 import registriesModule from './registries';
 import customTemplateModule from './custom-templates';
+import { reactModule } from './react';
 
-angular.module('portainer.kubernetes', ['portainer.app', registriesModule, customTemplateModule]).config([
+angular.module('portainer.kubernetes', ['portainer.app', registriesModule, customTemplateModule, reactModule]).config([
   '$stateRegistryProvider',
   function ($stateRegistryProvider) {
     'use strict';
@@ -30,7 +31,7 @@ angular.module('portainer.kubernetes', ['portainer.app', registriesModule, custo
             }
 
             EndpointProvider.setEndpointID(endpoint.Id);
-            await StateManager.updateEndpointState(endpoint, []);
+            await StateManager.updateEndpointState(endpoint);
 
             if (endpoint.Type === 7 && endpoint.Status === 2) {
               throw new Error('Unable to contact Edge agent, please ensure that the agent is properly running on the remote environment.');

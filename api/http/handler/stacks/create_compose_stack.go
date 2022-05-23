@@ -25,6 +25,8 @@ type composeStackFromFileContentPayload struct {
 	StackFileContent string `example:"version: 3\n services:\n web:\n image:nginx" validate:"required"`
 	// A list of environment(endpoint) variables used during stack deployment
 	Env []portainer.Pair `example:""`
+	// Whether the stack is from a app template
+	FromAppTemplate bool `example:"false"`
 }
 
 func (payload *composeStackFromFileContentPayload) Validate(r *http.Request) error {
@@ -101,14 +103,15 @@ func (handler *Handler) createComposeStackFromFileContent(w http.ResponseWriter,
 
 	stackID := handler.DataStore.Stack().GetNextIdentifier()
 	stack := &portainer.Stack{
-		ID:           portainer.StackID(stackID),
-		Name:         payload.Name,
-		Type:         portainer.DockerComposeStack,
-		EndpointID:   endpoint.ID,
-		EntryPoint:   filesystem.ComposeFileDefaultName,
-		Env:          payload.Env,
-		Status:       portainer.StackStatusActive,
-		CreationDate: time.Now().Unix(),
+		ID:              portainer.StackID(stackID),
+		Name:            payload.Name,
+		Type:            portainer.DockerComposeStack,
+		EndpointID:      endpoint.ID,
+		EntryPoint:      filesystem.ComposeFileDefaultName,
+		Env:             payload.Env,
+		Status:          portainer.StackStatusActive,
+		CreationDate:    time.Now().Unix(),
+		FromAppTemplate: payload.FromAppTemplate,
 	}
 
 	stackFolder := strconv.Itoa(int(stack.ID))
@@ -126,14 +129,14 @@ func (handler *Handler) createComposeStackFromFileContent(w http.ResponseWriter,
 		return configErr
 	}
 
-	err = handler.deployComposeStack(config)
+	err = handler.deployComposeStack(config, false)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: err.Error(), Err: err}
 	}
 
 	stack.CreatedBy = config.user.Username
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the stack inside the database", Err: err}
 	}
@@ -163,6 +166,8 @@ type composeStackFromGitRepositoryPayload struct {
 	AutoUpdate *portainer.StackAutoUpdate
 	// A list of environment(endpoint) variables used during stack deployment
 	Env []portainer.Pair
+	// Whether the stack is from a app template
+	FromAppTemplate bool `example:"false"`
 }
 
 func (payload *composeStackFromGitRepositoryPayload) Validate(r *http.Request) error {
@@ -171,9 +176,6 @@ func (payload *composeStackFromGitRepositoryPayload) Validate(r *http.Request) e
 	}
 	if govalidator.IsNull(payload.RepositoryURL) || !govalidator.IsURL(payload.RepositoryURL) {
 		return errors.New("Invalid repository URL. Must correspond to a valid URL format")
-	}
-	if govalidator.IsNull(payload.RepositoryReferenceName) {
-		payload.RepositoryReferenceName = defaultGitReferenceName
 	}
 	if payload.RepositoryAuthentication && govalidator.IsNull(payload.RepositoryPassword) {
 		return errors.New("Invalid repository credentials. Password must be specified when authentication is enabled")
@@ -239,6 +241,7 @@ func (handler *Handler) createComposeStackFromGitRepository(w http.ResponseWrite
 		AdditionalFiles: payload.AdditionalFiles,
 		AutoUpdate:      payload.AutoUpdate,
 		Env:             payload.Env,
+		FromAppTemplate: payload.FromAppTemplate,
 		GitConfig: &gittypes.RepoConfig{
 			URL:            payload.RepositoryURL,
 			ReferenceName:  payload.RepositoryReferenceName,
@@ -277,7 +280,7 @@ func (handler *Handler) createComposeStackFromGitRepository(w http.ResponseWrite
 		return configErr
 	}
 
-	err = handler.deployComposeStack(config)
+	err = handler.deployComposeStack(config, false)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: err.Error(), Err: err}
 	}
@@ -293,7 +296,7 @@ func (handler *Handler) createComposeStackFromGitRepository(w http.ResponseWrite
 
 	stack.CreatedBy = config.user.Username
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the stack inside the database", Err: err}
 	}
@@ -388,14 +391,14 @@ func (handler *Handler) createComposeStackFromFileUpload(w http.ResponseWriter, 
 		return configErr
 	}
 
-	err = handler.deployComposeStack(config)
+	err = handler.deployComposeStack(config, false)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: err.Error(), Err: err}
 	}
 
 	stack.CreatedBy = config.user.Username
 
-	err = handler.DataStore.Stack().CreateStack(stack)
+	err = handler.DataStore.Stack().Create(stack)
 	if err != nil {
 		return &httperror.HandlerError{StatusCode: http.StatusInternalServerError, Message: "Unable to persist the stack inside the database", Err: err}
 	}
@@ -445,7 +448,7 @@ func (handler *Handler) createComposeDeployConfig(r *http.Request, stack *portai
 // to login/logout, which will generate the required data in the config.json file and then
 // clean it. Hence the use of the mutex.
 // We should contribute to libcompose to support authentication without using the config.json file.
-func (handler *Handler) deployComposeStack(config *composeStackDeploymentConfig) error {
+func (handler *Handler) deployComposeStack(config *composeStackDeploymentConfig, forceCreate bool) error {
 	isAdminOrEndpointAdmin, err := handler.userIsAdminOrEndpointAdmin(config.user, config.endpoint.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to check user priviliges deploying a stack")
@@ -474,5 +477,5 @@ func (handler *Handler) deployComposeStack(config *composeStackDeploymentConfig)
 		}
 	}
 
-	return handler.StackDeployer.DeployComposeStack(config.stack, config.endpoint, config.registries)
+	return handler.StackDeployer.DeployComposeStack(config.stack, config.endpoint, config.registries, forceCreate)
 }

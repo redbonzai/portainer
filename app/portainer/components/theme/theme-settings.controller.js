@@ -1,4 +1,4 @@
-import { buildOption } from '@/portainer/components/box-selector';
+import { buildOption } from '@/portainer/components/BoxSelector';
 
 export default class ThemeSettingsController {
   /* @ngInject */
@@ -13,34 +13,34 @@ export default class ThemeSettingsController {
     this.setTheme = this.setTheme.bind(this);
   }
 
-  /** Theme Settings Panel */
-  async updateTheme() {
+  async setTheme(theme) {
     try {
-      await this.UserService.updateUserTheme(this.state.userId, this.state.userTheme);
-      this.state.themeInProgress = false;
+      if (theme === 'auto' || !theme) {
+        this.ThemeManager.autoTheme();
+      } else {
+        this.ThemeManager.setTheme(theme);
+      }
+
+      this.state.userTheme = theme;
+      if (!this.state.isDemo) {
+        await this.UserService.updateUserTheme(this.state.userId, this.state.userTheme);
+      }
+
       this.Notifications.success('Success', 'User theme successfully updated');
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to update user theme');
     }
   }
 
-  setTheme(theme) {
-    if (theme === 'auto' || !theme) {
-      this.ThemeManager.autoTheme();
-    } else {
-      this.ThemeManager.setTheme(theme);
-    }
-    this.state.themeInProgress = true;
-  }
-
   $onInit() {
     return this.$async(async () => {
+      const state = this.StateManager.getState();
+
       this.state = {
         userId: null,
         userTheme: '',
-        initTheme: '',
         defaultTheme: 'auto',
-        themeInProgress: false,
+        isDemo: state.application.demoEnvironment.enabled,
       };
 
       this.state.availableThemes = [
@@ -54,16 +54,9 @@ export default class ThemeSettingsController {
         this.state.userId = await this.Authentication.getUserDetails().ID;
         const data = await this.UserService.user(this.state.userId);
         this.state.userTheme = data.UserTheme || this.state.defaultTheme;
-        this.state.initTheme = this.state.userTheme;
       } catch (err) {
         this.Notifications.error('Failure', err, 'Unable to get user details');
       }
     });
-  }
-
-  $onDestroy() {
-    if (this.state.themeInProgress) {
-      this.ThemeManager.setTheme(this.state.initTheme);
-    }
   }
 }

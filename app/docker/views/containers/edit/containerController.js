@@ -1,6 +1,9 @@
 import moment from 'moment';
 import _ from 'lodash-es';
 import { PorImageRegistryModel } from 'Docker/models/porImageRegistry';
+import { confirmContainerDeletion } from '@/portainer/services/modal.service/prompt';
+import { FeatureId } from 'Portainer/feature-flags/enums';
+import { ResourceControlType } from '@/portainer/access-control/types';
 
 angular.module('portainer.docker').controller('ContainerController', [
   '$q',
@@ -43,11 +46,13 @@ angular.module('portainer.docker').controller('ContainerController', [
     Authentication,
     endpoint
   ) {
+    $scope.resourceType = ResourceControlType.Container;
     $scope.endpoint = endpoint;
     $scope.isAdmin = Authentication.isAdmin();
     $scope.activityTime = 0;
     $scope.portBindings = [];
     $scope.displayRecreateButton = false;
+    $scope.containerWebhookFeature = FeatureId.CONTAINER_WEBHOOK;
 
     $scope.config = {
       RegistryModel: new PorImageRegistryModel(),
@@ -67,6 +72,10 @@ angular.module('portainer.docker').controller('ContainerController', [
     }
 
     $scope.updateRestartPolicy = updateRestartPolicy;
+
+    $scope.onUpdateResourceControlSuccess = function () {
+      $state.reload();
+    };
 
     var update = function () {
       var nodeName = $transition$.params().nodeName;
@@ -246,7 +255,8 @@ angular.module('portainer.docker').controller('ContainerController', [
       if ($scope.container.State.Running) {
         title = 'You are about to remove a running container.';
       }
-      ModalService.confirmContainerDeletion(title, function (result) {
+
+      confirmContainerDeletion(title, function (result) {
         if (!result) {
           return;
         }
@@ -302,7 +312,7 @@ angular.module('portainer.docker').controller('ContainerController', [
           return $q.when();
         }
         return RegistryService.retrievePorRegistryModelFromRepository(container.Config.Image, endpoint.Id).then((registryModel) => {
-          return ImageService.pullImage(registryModel, true);
+          return ImageService.pullImage(registryModel, false);
         });
       }
 

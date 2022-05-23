@@ -2,11 +2,12 @@ package kubernetes
 
 import (
 	"errors"
+	"github.com/portainer/portainer/api/kubernetes"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	httperror "github.com/portainer/libhttp/error"
-	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/http/middlewares"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
@@ -17,19 +18,22 @@ import (
 // Handler is the HTTP handler which will natively deal with to external environments(endpoints).
 type Handler struct {
 	*mux.Router
-	dataStore               portainer.DataStore
-	kubernetesClientFactory *cli.ClientFactory
-	authorizationService    *authorization.Service
-	JwtService              portainer.JWTService
+	authorizationService     *authorization.Service
+	dataStore                dataservices.DataStore
+	jwtService               dataservices.JWTService
+	kubernetesClientFactory  *cli.ClientFactory
+	kubeClusterAccessService kubernetes.KubeClusterAccessService
 }
 
 // NewHandler creates a handler to process pre-proxied requests to external APIs.
-func NewHandler(bouncer *security.RequestBouncer, authorizationService *authorization.Service, dataStore portainer.DataStore, kubernetesClientFactory *cli.ClientFactory) *Handler {
+func NewHandler(bouncer *security.RequestBouncer, authorizationService *authorization.Service, dataStore dataservices.DataStore, jwtService dataservices.JWTService, kubeClusterAccessService kubernetes.KubeClusterAccessService, kubernetesClientFactory *cli.ClientFactory) *Handler {
 	h := &Handler{
-		Router:                  mux.NewRouter(),
-		dataStore:               dataStore,
-		kubernetesClientFactory: kubernetesClientFactory,
-		authorizationService:    authorizationService,
+		Router:                   mux.NewRouter(),
+		authorizationService:     authorizationService,
+		dataStore:                dataStore,
+		jwtService:               jwtService,
+		kubeClusterAccessService: kubeClusterAccessService,
+		kubernetesClientFactory:  kubernetesClientFactory,
 	}
 
 	kubeRouter := h.PathPrefix("/kubernetes").Subrouter()

@@ -4,8 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	clientV1 "k8s.io/client-go/tools/clientcmd/api/v1"
+	"strings"
 
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
@@ -14,6 +13,7 @@ import (
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/endpointutils"
 	kcli "github.com/portainer/portainer/api/kubernetes/cli"
+	clientV1 "k8s.io/client-go/tools/clientcmd/api/v1"
 )
 
 // @id GetKubernetesConfig
@@ -21,6 +21,7 @@ import (
 // @description Generates kubeconfig file enabling client communication with k8s api server
 // @description **Access policy**: authenticated
 // @tags kubernetes
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -38,7 +39,7 @@ func (handler *Handler) getKubernetesConfig(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return &httperror.HandlerError{http.StatusForbidden, "Permission denied to access environment", err}
 	}
-	bearerToken, err := handler.JwtService.GenerateTokenForKubeconfig(tokenData)
+	bearerToken, err := handler.jwtService.GenerateTokenForKubeconfig(tokenData)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to generate JWT token", err}
 	}
@@ -122,21 +123,14 @@ func (handler *Handler) buildConfig(r *http.Request, tokenData *portainer.TokenD
 	authInfosSet := make(map[string]bool)
 
 	for idx, endpoint := range endpoints {
-		cli, err := handler.kubernetesClientFactory.GetKubeClient(&endpoint)
-		if err != nil {
-			return nil, &httperror.HandlerError{http.StatusInternalServerError, "Unable to create Kubernetes client", err}
-		}
+		instanceID := handler.kubernetesClientFactory.GetInstanceID()
+		serviceAccountName := kcli.UserServiceAccountName(int(tokenData.ID), instanceID)
 
-		serviceAccount, err := cli.GetServiceAccount(tokenData)
-		if err != nil {
-			return nil, &httperror.HandlerError{http.StatusInternalServerError, fmt.Sprintf("unable to find serviceaccount associated with user; username=%s", tokenData.Username), err}
-		}
-
-		configClusters[idx] = buildCluster(r, endpoint)
-		configContexts[idx] = buildContext(serviceAccount.Name, endpoint)
-		if !authInfosSet[serviceAccount.Name] {
-			configAuthInfos = append(configAuthInfos, buildAuthInfo(serviceAccount.Name, bearerToken))
-			authInfosSet[serviceAccount.Name] = true
+		configClusters[idx] = handler.buildCluster(r, endpoint)
+		configContexts[idx] = buildContext(serviceAccountName, endpoint)
+		if !authInfosSet[serviceAccountName] {
+			configAuthInfos = append(configAuthInfos, buildAuthInfo(serviceAccountName, bearerToken))
+			authInfosSet[serviceAccountName] = true
 		}
 	}
 
@@ -150,12 +144,13 @@ func (handler *Handler) buildConfig(r *http.Request, tokenData *portainer.TokenD
 	}, nil
 }
 
-func buildCluster(r *http.Request, endpoint portainer.Endpoint) clientV1.NamedCluster {
-	proxyURL := fmt.Sprintf("https://%s/api/endpoints/%d/kubernetes", r.Host, endpoint.ID)
+func (handler *Handler) buildCluster(r *http.Request, endpoint portainer.Endpoint) clientV1.NamedCluster {
+	hostURL := strings.Split(r.Host, ":")[0]
+	kubeConfigInternal := handler.kubeClusterAccessService.GetData(hostURL, endpoint.ID)
 	return clientV1.NamedCluster{
 		Name: buildClusterName(endpoint.Name),
 		Cluster: clientV1.Cluster{
-			Server:                proxyURL,
+			Server:                kubeConfigInternal.ClusterServerURL,
 			InsecureSkipTLSVerify: true,
 		},
 	}

@@ -11,7 +11,6 @@ class CustomTemplatesViewController {
     $state,
     Authentication,
     CustomTemplateService,
-    EndpointProvider,
     FormValidator,
     ModalService,
     NetworkService,
@@ -26,7 +25,6 @@ class CustomTemplatesViewController {
     this.$state = $state;
     this.Authentication = Authentication;
     this.CustomTemplateService = CustomTemplateService;
-    this.EndpointProvider = EndpointProvider;
     this.FormValidator = FormValidator;
     this.ModalService = ModalService;
     this.NetworkService = NetworkService;
@@ -132,7 +130,7 @@ class CustomTemplatesViewController {
     }
     const stackName = this.formValues.name;
 
-    const endpointId = this.EndpointProvider.endpointID();
+    const endpointId = this.endpoint.Id;
 
     this.state.actionInProgress = true;
 
@@ -215,7 +213,9 @@ class CustomTemplatesViewController {
     }
 
     try {
+      var template = _.find(this.templates, { Id: templateId });
       await this.CustomTemplateService.remove(templateId);
+      this.Notifications.success('Template successfully deleted', template && template.Title);
       _.remove(this.templates, { Id: templateId });
     } catch (err) {
       this.Notifications.error('Failure', err, 'Failed to delete template');

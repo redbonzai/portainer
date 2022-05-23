@@ -5,29 +5,17 @@ import uuidv4 from 'uuid/v4';
 import PortainerError from 'Portainer/error';
 
 import { KubernetesDeployManifestTypes, KubernetesDeployBuildMethods, KubernetesDeployRequestMethods, RepositoryMechanismTypes } from 'Kubernetes/models/deploy';
-import { buildOption } from '@/portainer/components/box-selector';
+import { buildOption } from '@/portainer/components/BoxSelector';
+
 class KubernetesDeployController {
   /* @ngInject */
-  constructor(
-    $async,
-    $state,
-    $window,
-    Authentication,
-    ModalService,
-    Notifications,
-    EndpointProvider,
-    KubernetesResourcePoolService,
-    StackService,
-    WebhookHelper,
-    CustomTemplateService
-  ) {
+  constructor($async, $state, $window, Authentication, ModalService, Notifications, KubernetesResourcePoolService, StackService, WebhookHelper, CustomTemplateService) {
     this.$async = $async;
     this.$state = $state;
     this.$window = $window;
     this.Authentication = Authentication;
     this.ModalService = ModalService;
     this.Notifications = Notifications;
-    this.EndpointProvider = EndpointProvider;
     this.KubernetesResourcePoolService = KubernetesResourcePoolService;
     this.StackService = StackService;
     this.WebhookHelper = WebhookHelper;
@@ -60,19 +48,19 @@ class KubernetesDeployController {
       StackName: '',
       RepositoryURL: '',
       RepositoryReferenceName: '',
-      RepositoryAuthentication: true,
+      RepositoryAuthentication: false,
       RepositoryUsername: '',
       RepositoryPassword: '',
       AdditionalFiles: [],
       ComposeFilePathInRepository: '',
-      RepositoryAutomaticUpdates: true,
+      RepositoryAutomaticUpdates: false,
       RepositoryMechanism: RepositoryMechanismTypes.INTERVAL,
       RepositoryFetchInterval: '5m',
       RepositoryWebhookURL: this.WebhookHelper.returnStackWebhookUrl(uuidv4()),
     };
+
     this.ManifestDeployTypes = KubernetesDeployManifestTypes;
     this.BuildMethods = KubernetesDeployBuildMethods;
-    this.endpointId = this.EndpointProvider.endpointID();
 
     this.onChangeTemplateId = this.onChangeTemplateId.bind(this);
     this.deployAsync = this.deployAsync.bind(this);
@@ -80,7 +68,8 @@ class KubernetesDeployController {
     this.getNamespacesAsync = this.getNamespacesAsync.bind(this);
     this.onChangeFormValues = this.onChangeFormValues.bind(this);
     this.buildAnalyticsProperties = this.buildAnalyticsProperties.bind(this);
-    this.onDeployTypeChange = this.onDeployTypeChange.bind(this);
+    this.onChangeMethod = this.onChangeMethod.bind(this);
+    this.onChangeDeployType = this.onChangeDeployType.bind(this);
   }
 
   buildAnalyticsProperties() {
@@ -132,6 +121,19 @@ class KubernetesDeployController {
         case KubernetesDeployManifestTypes.KUBERNETES:
           return 'manifest';
       }
+    }
+  }
+
+  onChangeMethod(method) {
+    this.state.BuildMethod = method;
+  }
+
+  onChangeDeployType(type) {
+    this.state.DeployType = type;
+    if (type == this.ManifestDeployTypes.COMPOSE) {
+      this.DeployMethod = 'compose';
+    } else {
+      this.DeployMethod = 'manifest';
     }
   }
 
@@ -209,9 +211,17 @@ class KubernetesDeployController {
           throw new PortainerError('Unable to determine build method');
       }
 
+      let deployNamespace = '';
+
+      if (this.formValues.namespace_toggle) {
+        deployNamespace = '';
+      } else {
+        deployNamespace = this.formValues.Namespace;
+      }
+
       const payload = {
         ComposeFormat: composeFormat,
-        Namespace: this.formValues.Namespace,
+        Namespace: deployNamespace,
         StackName: this.formValues.StackName,
       };
 
@@ -239,7 +249,7 @@ class KubernetesDeployController {
         payload.ManifestURL = this.formValues.ManifestURL;
       }
 
-      await this.StackService.kubernetesDeploy(this.endpointId, method, payload);
+      await this.StackService.kubernetesDeploy(this.endpoint.Id, method, payload);
 
       this.Notifications.success('Manifest successfully deployed');
       this.state.isEditorDirty = false;
@@ -282,14 +292,6 @@ class KubernetesDeployController {
     return this.$async(this.getNamespacesAsync);
   }
 
-  onDeployTypeChange(value) {
-    if (value == this.ManifestDeployTypes.COMPOSE) {
-      this.DeployMethod = 'compose';
-    } else {
-      this.DeployMethod = 'manifest';
-    }
-  }
-
   async uiCanExit() {
     if (this.formValues.EditorContent && this.state.isEditorDirty) {
       return this.ModalService.confirmWebEditorDiscard();
@@ -298,6 +300,7 @@ class KubernetesDeployController {
 
   $onInit() {
     return this.$async(async () => {
+      this.formValues.namespace_toggle = false;
       await this.getNamespaces();
 
       if (this.$state.params.templateId) {

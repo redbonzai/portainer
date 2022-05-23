@@ -16,11 +16,11 @@ export const rdWidgetTitle = {
   template: `
     <div class="widget-header">
       <div class="row">
-        <span ng-class="classes" class="pull-left">
-          <i class="fa" ng-class="icon"></i>
-          <span ng-transclude="title">{{ titleText }}</span>
+        <span ng-class="$ctrl.classes" class="pull-left">
+          <i class="fa" ng-class="$ctrl.icon"></i>
+          <span ng-transclude="title">{{ $ctrl.titleText }}</span>
         </span>
-        <span ng-class="classes" class="pull-right" ng-transclude></span>
+        <span ng-class="$ctrl.classes" class="pull-right" ng-transclude></span>
       </div>
     </div>
 `,
@@ -45,7 +45,7 @@ export function WidgetTitle({
       <div className="row">
         <span className={clsx('pull-left', className)}>
           {typeof icon === 'string' ? <i className={clsx('fa', icon)} /> : icon}
-          {title}
+          <span>{title}</span>
         </span>
         <span className={clsx('pull-right', className)}>{children}</span>
       </div>

@@ -7,7 +7,9 @@
   <rd-header-content>Environment management</rd-header-content>
 </rd-header>
 
-<div class="row">
+<view-loading ng-if="state.loadingMessage" message="state.loadingMessage"></view-loading>
+
+<div class="row" ng-if="!state.loadingMessage">
   <div class="col-sm-12">
     <endpoints-datatable
       title-text="Environments"
@@ -16,6 +18,7 @@
       order-by="Name"
       remove-action="removeAction"
       retrieve-page="getPaginatedEndpoints"
+      set-loading-message="setLoadingMessage"
     ></endpoints-datatable>
   </div>
 </div>

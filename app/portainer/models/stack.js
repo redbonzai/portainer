@@ -1,4 +1,4 @@
-import { ResourceControlViewModel } from 'Portainer/models/resourceControl/resourceControl';
+import { ResourceControlViewModel } from '@/portainer/access-control/models/ResourceControlViewModel';
 
 export function StackViewModel(data) {
   this.Id = data.Id;
@@ -21,6 +21,7 @@ export function StackViewModel(data) {
   this.Orphaned = false;
   this.Checked = false;
   this.GitConfig = data.GitConfig;
+  this.FromAppTemplate = data.FromAppTemplate;
   this.AdditionalFiles = data.AdditionalFiles;
   this.AutoUpdate = data.AutoUpdate;
 }

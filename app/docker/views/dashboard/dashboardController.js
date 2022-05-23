@@ -1,6 +1,9 @@
 import angular from 'angular';
 import _ from 'lodash';
 
+import { isOfflineEndpoint } from '@/portainer/helpers/endpointHelper';
+import { PortainerEndpointTypes } from 'Portainer/models/endpoint/models';
+
 angular.module('portainer.docker').controller('DashboardController', [
   '$scope',
   '$q',
@@ -12,9 +15,7 @@ angular.module('portainer.docker').controller('DashboardController', [
   'SystemService',
   'ServiceService',
   'StackService',
-  'EndpointService',
   'Notifications',
-  'EndpointProvider',
   'StateManager',
   'TagService',
   'endpoint',
@@ -29,9 +30,7 @@ angular.module('portainer.docker').controller('DashboardController', [
     SystemService,
     ServiceService,
     StackService,
-    EndpointService,
     Notifications,
-    EndpointProvider,
     StateManager,
     TagService,
     endpoint
@@ -45,20 +44,18 @@ angular.module('portainer.docker').controller('DashboardController', [
 
     async function initView() {
       const endpointMode = $scope.applicationState.endpoint.mode;
-      const endpointId = EndpointProvider.endpointID();
-      $scope.endpointId = endpointId;
+      $scope.endpoint = endpoint;
 
       $scope.showStacks = await shouldShowStacks();
-
+      $scope.showEnvUrl = endpoint.Type !== PortainerEndpointTypes.EdgeAgentOnDockerEnvironment && endpoint.Type !== PortainerEndpointTypes.EdgeAgentOnKubernetesEnvironment;
       $q.all({
         containers: ContainerService.containers(1),
         images: ImageService.images(false),
         volumes: VolumeService.volumes(),
         networks: NetworkService.networks(true, true, true),
         services: endpointMode.provider === 'DOCKER_SWARM_MODE' && endpointMode.role === 'MANAGER' ? ServiceService.services() : [],
-        stacks: StackService.stacks(true, endpointMode.provider === 'DOCKER_SWARM_MODE' && endpointMode.role === 'MANAGER', endpointId),
+        stacks: StackService.stacks(true, endpointMode.provider === 'DOCKER_SWARM_MODE' && endpointMode.role === 'MANAGER', endpoint.Id),
         info: SystemService.info(),
-        endpoint: EndpointService.endpoint(endpointId),
         tags: TagService.tags(),
       })
         .then(function success(data) {
@@ -69,11 +66,10 @@ angular.module('portainer.docker').controller('DashboardController', [
           $scope.serviceCount = data.services.length;
           $scope.stackCount = data.stacks.length;
           $scope.info = data.info;
-          $scope.endpoint = data.endpoint;
-          $scope.endpointTags = $scope.endpoint.TagIds.length
+          $scope.endpointTags = endpoint.TagIds.length
             ? _.join(
                 _.filter(
-                  _.map($scope.endpoint.TagIds, (id) => {
+                  _.map(endpoint.TagIds, (id) => {
                     const tag = data.tags.find((tag) => tag.Id === id);
                     return tag ? tag.Name : '';
                   }),
@@ -82,7 +78,7 @@ angular.module('portainer.docker').controller('DashboardController', [
                 ', '
               )
             : '-';
-          $scope.offlineMode = EndpointProvider.offlineMode();
+          $scope.offlineMode = isOfflineEndpoint(endpoint);
         })
         .catch(function error(err) {
           Notifications.error('Failure', err, 'Unable to load dashboard data');

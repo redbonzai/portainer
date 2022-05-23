@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -22,6 +23,7 @@ import (
 // @description Create a custom template.
 // @description **Access policy**: authenticated
 // @tags custom_templates
+// @security ApiKeyAuth
 // @security jwt
 // @accept json,multipart/form-data
 // @produce json
@@ -67,14 +69,14 @@ func (handler *Handler) customTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	err = handler.DataStore.CustomTemplate().CreateCustomTemplate(customTemplate)
+	err = handler.DataStore.CustomTemplate().Create(customTemplate)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to create custom template", err}
 	}
 
 	resourceControl := authorization.NewPrivateResourceControl(strconv.Itoa(int(customTemplate.ID)), portainer.CustomTemplateResourceControl, tokenData.ID)
 
-	err = handler.DataStore.ResourceControl().CreateResourceControl(resourceControl)
+	err = handler.DataStore.ResourceControl().Create(resourceControl)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist resource control inside the database", err}
 	}
@@ -270,14 +272,19 @@ func (handler *Handler) createCustomTemplateFromGitRepository(r *http.Request) (
 	if err != nil {
 		return nil, err
 	}
+	isValidProject := true
+	defer func() {
+		if !isValidProject {
+			if err := handler.FileService.RemoveDirectory(projectPath); err != nil {
+				log.Printf("[WARN] [http,customtemplate,git] [error: %s] [message: unable to remove git repository directory]", err)
+			}
+		}
+	}()
 
 	entryPath := filesystem.JoinPaths(projectPath, customTemplate.EntryPoint)
-
 	exists, err := handler.FileService.FileExists(entryPath)
 	if err != nil || !exists {
-		if err := handler.FileService.RemoveDirectory(projectPath); err != nil {
-			log.Printf("[WARN] [http,customtemplate,git] [error: %s] [message: unable to remove git repository directory]", err)
-		}
+		isValidProject = false
 	}
 
 	if err != nil {
@@ -286,6 +293,16 @@ func (handler *Handler) createCustomTemplateFromGitRepository(r *http.Request) (
 
 	if !exists {
 		return nil, errors.New("Invalid Compose file, ensure that the Compose file path is correct")
+	}
+
+	info, err := os.Lstat(entryPath)
+	if err != nil {
+		isValidProject = false
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 { // entry is a symlink
+		isValidProject = false
+		return nil, errors.New("Invalid Compose file, ensure that the Compose file is not a symbolic link")
 	}
 
 	return customTemplate, nil

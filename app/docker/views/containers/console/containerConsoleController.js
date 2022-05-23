@@ -1,11 +1,12 @@
 import { Terminal } from 'xterm';
+import { baseHref } from '@/portainer/helpers/pathHelper';
 
 angular.module('portainer.docker').controller('ContainerConsoleController', [
   '$scope',
+  '$state',
   '$transition$',
   'ContainerService',
   'ImageService',
-  'EndpointProvider',
   'Notifications',
   'ContainerHelper',
   'ExecService',
@@ -14,10 +15,10 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
   'CONSOLE_COMMANDS_LABEL_PREFIX',
   function (
     $scope,
+    $state,
     $transition$,
     ContainerService,
     ImageService,
-    EndpointProvider,
     Notifications,
     ContainerHelper,
     ExecService,
@@ -64,12 +65,13 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
 
           const params = {
             token: LocalStorage.getJWT(),
-            endpointId: EndpointProvider.endpointID(),
+            endpointId: $state.params.endpointId,
             id: attachId,
           };
 
+          const base = window.location.origin.startsWith('http') ? `${window.location.origin}${baseHref()}` : baseHref();
           var url =
-            window.location.href.split('#')[0] +
+            base +
             'api/websocket/attach?' +
             Object.keys(params)
               .map((k) => k + '=' + params[k])
@@ -104,12 +106,13 @@ angular.module('portainer.docker').controller('ContainerConsoleController', [
         .then(function success(data) {
           const params = {
             token: LocalStorage.getJWT(),
-            endpointId: EndpointProvider.endpointID(),
+            endpointId: $state.params.endpointId,
             id: data.Id,
           };
 
+          const base = window.location.origin.startsWith('http') ? `${window.location.origin}${baseHref()}` : baseHref();
           var url =
-            window.location.href.split('#')[0] +
+            base +
             'api/websocket/exec?' +
             Object.keys(params)
               .map((k) => k + '=' + params[k])

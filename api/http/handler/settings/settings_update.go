@@ -13,6 +13,7 @@ import (
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/filesystem"
+	"github.com/portainer/portainer/api/internal/edge"
 )
 
 type settingsUpdatePayload struct {
@@ -42,6 +43,12 @@ type settingsUpdatePayload struct {
 	HelmRepositoryURL *string `example:"https://charts.bitnami.com/bitnami"`
 	// Kubectl Shell Image
 	KubectlShellImage *string `example:"portainer/kubectl-shell:latest"`
+	// TrustOnFirstConnect makes Portainer accepting edge agent connection by default
+	TrustOnFirstConnect *bool `example:"false"`
+	// EnforceEdgeID makes Portainer store the Edge ID instead of accepting anyone
+	EnforceEdgeID *bool `example:"false"`
+	// EdgePortainerURL is the URL that is exposed to edge agents
+	EdgePortainerURL *string `json:"EdgePortainerURL"`
 }
 
 func (payload *settingsUpdatePayload) Validate(r *http.Request) error {
@@ -70,6 +77,13 @@ func (payload *settingsUpdatePayload) Validate(r *http.Request) error {
 		}
 	}
 
+	if payload.EdgePortainerURL != nil && *payload.EdgePortainerURL != "" {
+		_, err := edge.ParseHostForEdge(*payload.EdgePortainerURL)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -78,6 +92,7 @@ func (payload *settingsUpdatePayload) Validate(r *http.Request) error {
 // @description Update Portainer settings.
 // @description **Access policy**: administrator
 // @tags settings
+// @security ApiKeyAuth
 // @security jwt
 // @accept json
 // @produce json
@@ -98,6 +113,11 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve the settings from the database", err}
 	}
 
+	if handler.demoService.IsDemo() {
+		payload.EnableTelemetry = nil
+		payload.LogoURL = nil
+	}
+
 	if payload.AuthenticationMethod != nil {
 		settings.AuthenticationMethod = portainer.AuthenticationMethod(*payload.AuthenticationMethod)
 	}
@@ -111,18 +131,22 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 	}
 
 	if payload.HelmRepositoryURL != nil {
-		newHelmRepo := strings.TrimSuffix(strings.ToLower(*payload.HelmRepositoryURL), "/")
+		if *payload.HelmRepositoryURL != "" {
 
-		if newHelmRepo != settings.HelmRepositoryURL && newHelmRepo != portainer.DefaultHelmRepositoryURL {
-			err := libhelm.ValidateHelmRepositoryURL(*payload.HelmRepositoryURL)
-			if err != nil {
-				return &httperror.HandlerError{http.StatusBadRequest, "Invalid Helm repository URL. Must correspond to a valid URL format", err}
+			newHelmRepo := strings.TrimSuffix(strings.ToLower(*payload.HelmRepositoryURL), "/")
+
+			if newHelmRepo != settings.HelmRepositoryURL && newHelmRepo != portainer.DefaultHelmRepositoryURL {
+				err := libhelm.ValidateHelmRepositoryURL(*payload.HelmRepositoryURL)
+				if err != nil {
+					return &httperror.HandlerError{http.StatusBadRequest, "Invalid Helm repository URL. Must correspond to a valid URL format", err}
+				}
+
 			}
-		}
 
-		settings.HelmRepositoryURL = newHelmRepo
-	} else {
-		settings.HelmRepositoryURL = ""
+			settings.HelmRepositoryURL = newHelmRepo
+		} else {
+			settings.HelmRepositoryURL = ""
+		}
 	}
 
 	if payload.BlackListedLabels != nil {
@@ -159,6 +183,18 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 
 	if payload.EnableEdgeComputeFeatures != nil {
 		settings.EnableEdgeComputeFeatures = *payload.EnableEdgeComputeFeatures
+	}
+
+	if payload.TrustOnFirstConnect != nil {
+		settings.TrustOnFirstConnect = *payload.TrustOnFirstConnect
+	}
+
+	if payload.EnforceEdgeID != nil {
+		settings.EnforceEdgeID = *payload.EnforceEdgeID
+	}
+
+	if payload.EdgePortainerURL != nil {
+		settings.EdgePortainerURL = *payload.EdgePortainerURL
 	}
 
 	if payload.SnapshotInterval != nil && *payload.SnapshotInterval != settings.SnapshotInterval {

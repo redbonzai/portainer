@@ -5,6 +5,11 @@ import componentsModule from './components';
 import settingsModule from './settings';
 import featureFlagModule from './feature-flags';
 import userActivityModule from './user-activity';
+import servicesModule from './services';
+import teamsModule from './teams';
+import homeModule from './home';
+import { accessControlModule } from './access-control';
+import { reactModule } from './react';
 
 async function initAuthentication(authManager, Authentication, $rootScope, $state) {
   authManager.checkAuthOnRefresh();
@@ -22,12 +27,23 @@ async function initAuthentication(authManager, Authentication, $rootScope, $stat
 }
 
 angular
-  .module('portainer.app', ['portainer.oauth', 'portainer.rbac', componentsModule, settingsModule, featureFlagModule, userActivityModule, 'portainer.shared.datatable'])
+  .module('portainer.app', [
+    homeModule,
+    'portainer.oauth',
+    'portainer.rbac',
+    componentsModule,
+    settingsModule,
+    featureFlagModule,
+    userActivityModule,
+    'portainer.shared.datatable',
+    servicesModule,
+    teamsModule,
+    accessControlModule,
+    reactModule,
+  ])
   .config([
     '$stateRegistryProvider',
     function ($stateRegistryProvider) {
-      'use strict';
-
       var root = {
         name: 'root',
         abstract: true,
@@ -56,18 +72,6 @@ angular
             controller: 'SidebarController',
           },
         },
-        resolve: {
-          featuresServiceInitialized: /* @ngInject */ function featuresServiceInitialized($async, featureService, Notifications) {
-            return $async(async () => {
-              try {
-                await featureService.init();
-              } catch (e) {
-                Notifications.error('Failed initializing features service', e);
-                throw e;
-              }
-            });
-          },
-        },
       };
 
       var endpointRoot = {
@@ -76,7 +80,7 @@ angular
         parent: 'root',
         abstract: true,
         resolve: {
-          endpoint: /* @ngInject */ function endpoint($async, $state, $transition$, EndpointService, Notifications) {
+          endpoint: /* @ngInject */ function endpoint($async, $state, $transition$, EndpointProvider, EndpointService, Notifications) {
             return $async(async () => {
               try {
                 const endpointId = +$transition$.params().endpointId;
@@ -86,6 +90,8 @@ angular
                   $state.go('portainer.endpoints.endpoint', { id: endpoint.Id });
                   return;
                 }
+
+                EndpointProvider.setCurrentEndpoint(endpoint);
 
                 return endpoint;
               } catch (e) {
@@ -111,6 +117,16 @@ angular
           'content@': {
             templateUrl: './views/account/account.html',
             controller: 'AccountController',
+          },
+        },
+      };
+
+      const tokenCreation = {
+        name: 'portainer.account.new-access-token',
+        url: '/tokens/new',
+        views: {
+          'content@': {
+            component: 'createUserAccessToken',
           },
         },
       };
@@ -197,6 +213,51 @@ angular
         },
       };
 
+      var edgeDeviceCreation = {
+        name: 'portainer.endpoints.newEdgeDevice',
+        url: '/newEdgeDevice',
+        params: {
+          isEdgeDevice: true,
+        },
+        views: {
+          'content@': {
+            templateUrl: './views/endpoints/create/createendpoint.html',
+            controller: 'CreateEndpointController',
+          },
+        },
+      };
+
+      var deviceImport = {
+        name: 'portainer.endpoints.importDevice',
+        url: '/device',
+        views: {
+          'content@': {
+            templateUrl: './views/devices/import/importDevice.html',
+            controller: 'ImportDeviceController',
+          },
+        },
+      };
+
+      var addFDOProfile = {
+        name: 'portainer.endpoints.profile',
+        url: '/profile',
+        views: {
+          'content@': {
+            component: 'addProfileView',
+          },
+        },
+      };
+
+      var editFDOProfile = {
+        name: 'portainer.endpoints.profile.edit',
+        url: '/:id',
+        views: {
+          'content@': {
+            component: 'editProfileView',
+          },
+        },
+      };
+
       var endpointAccess = {
         name: 'portainer.endpoints.endpoint.access',
         url: '/access',
@@ -205,6 +266,17 @@ angular
             templateUrl: './views/endpoints/access/endpointAccess.html',
             controller: 'EndpointAccessController',
             controllerAs: 'ctrl',
+          },
+        },
+      };
+
+      var endpointKVM = {
+        name: 'portainer.endpoints.endpoint.kvm',
+        url: '/kvm?deviceId&deviceName',
+        views: {
+          'content@': {
+            templateUrl: './views/endpoints/kvm/endpointKVM.html',
+            controller: 'EndpointKVMController',
           },
         },
       };
@@ -258,8 +330,7 @@ angular
         url: '/home',
         views: {
           'content@': {
-            templateUrl: './views/home/home.html',
-            controller: 'HomeController',
+            component: 'homeView',
           },
         },
       };
@@ -270,26 +341,6 @@ angular
         url: '/init',
         views: {
           'sidebar@': {},
-        },
-      };
-
-      const wizard = {
-        name: 'portainer.wizard',
-        url: '/wizard',
-        views: {
-          'content@': {
-            component: 'wizardView',
-          },
-        },
-      };
-
-      const wizardEndpoints = {
-        name: 'portainer.wizard.endpoints',
-        url: '/endpoints',
-        views: {
-          'content@': {
-            component: 'wizardEndpoints',
-          },
         },
       };
 
@@ -332,8 +383,7 @@ angular
         url: '/:id',
         views: {
           'content@': {
-            templateUrl: './views/registries/edit/registry.html',
-            controller: 'RegistryController',
+            component: 'editRegistry',
           },
         },
       };
@@ -366,6 +416,16 @@ angular
           'content@': {
             templateUrl: './views/settings/authentication/settingsAuthentication.html',
             controller: 'SettingsAuthenticationController',
+          },
+        },
+      };
+
+      var settingsEdgeCompute = {
+        name: 'portainer.settings.edgeCompute',
+        url: '/edge',
+        views: {
+          'content@': {
+            component: 'settingsEdgeComputeView',
           },
         },
       };
@@ -429,13 +489,19 @@ angular
       $stateRegistryProvider.register(endpointRoot);
       $stateRegistryProvider.register(portainer);
       $stateRegistryProvider.register(account);
+      $stateRegistryProvider.register(tokenCreation);
       $stateRegistryProvider.register(authentication);
       $stateRegistryProvider.register(logout);
       $stateRegistryProvider.register(endpoints);
       $stateRegistryProvider.register(endpoint);
       $stateRegistryProvider.register(k8sendpoint);
       $stateRegistryProvider.register(endpointAccess);
+      $stateRegistryProvider.register(endpointKVM);
+      $stateRegistryProvider.register(edgeDeviceCreation);
       $stateRegistryProvider.register(endpointCreation);
+      $stateRegistryProvider.register(deviceImport);
+      $stateRegistryProvider.register(addFDOProfile);
+      $stateRegistryProvider.register(editFDOProfile);
       $stateRegistryProvider.register(endpointKubernetesConfiguration);
       $stateRegistryProvider.register(groups);
       $stateRegistryProvider.register(group);
@@ -443,8 +509,6 @@ angular
       $stateRegistryProvider.register(groupCreation);
       $stateRegistryProvider.register(home);
       $stateRegistryProvider.register(init);
-      $stateRegistryProvider.register(wizard);
-      $stateRegistryProvider.register(wizardEndpoints);
       $stateRegistryProvider.register(initEndpoint);
       $stateRegistryProvider.register(initAdmin);
       $stateRegistryProvider.register(registries);
@@ -452,6 +516,7 @@ angular
       $stateRegistryProvider.register(registryCreation);
       $stateRegistryProvider.register(settings);
       $stateRegistryProvider.register(settingsAuthentication);
+      $stateRegistryProvider.register(settingsEdgeCompute);
       $stateRegistryProvider.register(tags);
       $stateRegistryProvider.register(users);
       $stateRegistryProvider.register(user);

@@ -1,5 +1,5 @@
 import { AccessControlFormData } from 'Portainer/components/accessControlForm/porAccessControlFormModel';
-import { ResourceControlViewModel } from 'Portainer/models/resourceControl/resourceControl';
+import { ResourceControlViewModel } from '@/portainer/access-control/models/ResourceControlViewModel';
 
 export function ContainerGroupDefaultModel() {
   this.Location = '';
@@ -47,49 +47,4 @@ export function ContainerGroupViewModel(data) {
   if (data.Portainer && data.Portainer.ResourceControl) {
     this.ResourceControl = new ResourceControlViewModel(data.Portainer.ResourceControl);
   }
-}
-
-export function CreateContainerGroupRequest(model) {
-  this.location = model.Location;
-
-  var containerPorts = [];
-  var addressPorts = [];
-  for (var i = 0; i < model.Ports.length; i++) {
-    var binding = model.Ports[i];
-    if (!binding.container || !binding.host) {
-      continue;
-    }
-
-    containerPorts.push({
-      port: binding.container,
-    });
-
-    addressPorts.push({
-      port: binding.host,
-      protocol: binding.protocol,
-    });
-  }
-
-  this.properties = {
-    osType: model.OSType,
-    containers: [
-      {
-        name: model.Name,
-        properties: {
-          image: model.Image,
-          ports: containerPorts,
-          resources: {
-            requests: {
-              cpu: model.CPU,
-              memoryInGB: model.Memory,
-            },
-          },
-        },
-      },
-    ],
-    ipAddress: {
-      type: model.AllocatePublicIP ? 'Public' : 'Private',
-      ports: addressPorts,
-    },
-  };
 }
