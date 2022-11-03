@@ -1,4 +1,4 @@
-import { EnvironmentId } from '../environments/types';
+import { EnvironmentId } from '@/react/portainer/environments/types';
 
 export type UserId = number;
 
@@ -11,7 +11,7 @@ interface AuthorizationMap {
   [authorization: string]: boolean;
 }
 
-export interface User {
+export type User = {
   Id: UserId;
   Username: string;
   Role: Role;
@@ -29,4 +29,4 @@ export interface User {
   // this.AuthenticationMethod = data.AuthenticationMethod;
   // this.Checked = false;
   // this.EndpointAuthorizations = data.EndpointAuthorizations;
-}
+};

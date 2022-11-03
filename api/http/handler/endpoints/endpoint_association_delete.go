@@ -23,7 +23,7 @@ import (
 // @tags endpoints
 // @produce json
 // @param id path int true "Environment(Endpoint) identifier"
-// @success 200 {object} portainer.Endpoint "Success"
+// @success 204 "Success"
 // @failure 400 "Invalid request"
 // @failure 404 "Environment(Endpoint) not found"
 // @failure 500 "Server error"
@@ -31,18 +31,18 @@ import (
 func (handler *Handler) endpointAssociationDelete(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	endpointID, err := request.RetrieveNumericRouteVariableValue(r, "id")
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid environment identifier route variable", err}
+		return httperror.BadRequest("Invalid environment identifier route variable", err)
 	}
 
 	endpoint, err := handler.DataStore.Endpoint().Endpoint(portainer.EndpointID(endpointID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
-		return &httperror.HandlerError{http.StatusNotFound, "Unable to find an environment with the specified identifier inside the database", err}
+		return httperror.NotFound("Unable to find an environment with the specified identifier inside the database", err)
 	} else if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find an environment with the specified identifier inside the database", err}
+		return httperror.InternalServerError("Unable to find an environment with the specified identifier inside the database", err)
 	}
 
 	if endpoint.Type != portainer.EdgeAgentOnKubernetesEnvironment && endpoint.Type != portainer.EdgeAgentOnDockerEnvironment {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid environment type", errors.New("Invalid environment type")}
+		return httperror.BadRequest("Invalid environment type", errors.New("Invalid environment type"))
 	}
 
 	endpoint.EdgeID = ""
@@ -51,17 +51,17 @@ func (handler *Handler) endpointAssociationDelete(w http.ResponseWriter, r *http
 
 	endpoint.EdgeKey, err = handler.updateEdgeKey(endpoint.EdgeKey)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Invalid EdgeKey", err}
+		return httperror.InternalServerError("Invalid EdgeKey", err)
 	}
 
 	err = handler.DataStore.Endpoint().UpdateEndpoint(portainer.EndpointID(endpointID), endpoint)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Failed persisting environment in database", err}
+		return httperror.InternalServerError("Failed persisting environment in database", err)
 	}
 
 	handler.ReverseTunnelService.SetTunnelStatusToIdle(endpoint.ID)
 
-	return response.JSON(w, endpoint)
+	return response.Empty(w)
 }
 
 func (handler *Handler) updateEdgeKey(edgeKey string) (string, error) {

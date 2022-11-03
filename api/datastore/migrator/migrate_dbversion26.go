@@ -3,11 +3,14 @@ package migrator
 import (
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices/errors"
-	"github.com/portainer/portainer/api/internal/stackutils"
+	"github.com/portainer/portainer/api/stacks/stackutils"
+
+	"github.com/rs/zerolog/log"
 )
 
 func (m *Migrator) updateStackResourceControlToDB27() error {
-	migrateLog.Info("- updating stack resource controls")
+	log.Info().Msg("updating stack resource controls")
+
 	resourceControls, err := m.resourceControlService.ResourceControls()
 	if err != nil {
 		return err

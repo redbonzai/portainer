@@ -11,8 +11,7 @@ angular.module('portainer.app').factory('StackService', [
   'ServiceService',
   'ContainerService',
   'SwarmService',
-  'EndpointProvider',
-  function StackServiceFactory($q, $async, Stack, FileUploadService, StackHelper, ServiceService, ContainerService, SwarmService, EndpointProvider) {
+  function StackServiceFactory($q, $async, Stack, FileUploadService, StackHelper, ServiceService, ContainerService, SwarmService) {
     'use strict';
     var service = {
       updateGit,
@@ -51,8 +50,6 @@ angular.module('portainer.app').factory('StackService', [
     service.migrateSwarmStack = function (stack, targetEndpointId, newName) {
       var deferred = $q.defer();
 
-      EndpointProvider.setEndpointID(targetEndpointId);
-
       SwarmService.swarm()
         .then(function success(data) {
           var swarm = data;
@@ -67,9 +64,6 @@ angular.module('portainer.app').factory('StackService', [
         })
         .catch(function error(err) {
           deferred.reject({ msg: 'Unable to migrate stack', err: err });
-        })
-        .finally(function final() {
-          EndpointProvider.setEndpointID(stack.EndpointId);
         });
 
       return deferred.promise;
@@ -78,14 +72,11 @@ angular.module('portainer.app').factory('StackService', [
     service.migrateComposeStack = function (stack, targetEndpointId, newName) {
       var deferred = $q.defer();
 
-      EndpointProvider.setEndpointID(targetEndpointId);
-
       Stack.migrate({ id: stack.Id, endpointId: stack.EndpointId }, { EndpointID: targetEndpointId, Name: newName })
         .$promise.then(function success() {
           deferred.resolve();
         })
         .catch(function error(err) {
-          EndpointProvider.setEndpointID(stack.EndpointId);
           deferred.reject({ msg: 'Unable to migrate stack', err: err });
         });
 
@@ -266,8 +257,17 @@ angular.module('portainer.app').factory('StackService', [
       return deferred.promise;
     };
 
-    service.updateStack = function (stack, stackFile, env, prune) {
-      return Stack.update({ endpointId: stack.EndpointId }, { id: stack.Id, StackFileContent: stackFile, Env: env, Prune: prune }).$promise;
+    service.updateStack = function (stack, stackFile, env, prune, pullImage) {
+      return Stack.update(
+        { endpointId: stack.EndpointId },
+        {
+          id: stack.Id,
+          StackFileContent: stackFile,
+          Env: env,
+          Prune: prune,
+          PullImage: pullImage,
+        }
+      ).$promise;
     };
 
     service.updateKubeStack = function (stack, stackFile, gitConfig) {
@@ -436,7 +436,7 @@ angular.module('portainer.app').factory('StackService', [
       return Stack.stop({ id }).$promise;
     }
 
-    function updateGit(id, endpointId, env, prune, gitConfig) {
+    function updateGit(id, endpointId, env, prune, gitConfig, pullImage) {
       return Stack.updateGit(
         { endpointId, id },
         {
@@ -446,6 +446,7 @@ angular.module('portainer.app').factory('StackService', [
           RepositoryAuthentication: gitConfig.RepositoryAuthentication,
           RepositoryUsername: gitConfig.RepositoryUsername,
           RepositoryPassword: gitConfig.RepositoryPassword,
+          PullImage: pullImage,
         }
       ).$promise;
     }
@@ -484,6 +485,7 @@ angular.module('portainer.app').factory('StackService', [
           RepositoryAuthentication: gitConfig.RepositoryAuthentication,
           RepositoryUsername: gitConfig.RepositoryUsername,
           RepositoryPassword: gitConfig.RepositoryPassword,
+          Prune: gitConfig.Option.Prune,
         }
       ).$promise;
     };

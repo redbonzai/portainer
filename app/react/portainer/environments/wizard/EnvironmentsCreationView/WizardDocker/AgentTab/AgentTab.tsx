@@ -1,4 +1,4 @@
-import { Environment } from '@/portainer/environments/types';
+import { Environment } from '@/react/portainer/environments/types';
 
 import { AgentForm } from '../../shared/AgentForm/AgentForm';
 
@@ -6,14 +6,15 @@ import { DeploymentScripts } from './DeploymentScripts';
 
 interface Props {
   onCreate(environment: Environment): void;
+  isDockerStandalone?: boolean;
 }
 
-export function AgentTab({ onCreate }: Props) {
+export function AgentTab({ onCreate, isDockerStandalone }: Props) {
   return (
     <>
-      <DeploymentScripts />
+      <DeploymentScripts isDockerStandalone={isDockerStandalone} />
 
-      <div className="wizard-form">
+      <div className="mt-5">
         <AgentForm onCreate={onCreate} />
       </div>
     </>

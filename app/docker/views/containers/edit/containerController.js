@@ -2,8 +2,8 @@ import moment from 'moment';
 import _ from 'lodash-es';
 import { PorImageRegistryModel } from 'Docker/models/porImageRegistry';
 import { confirmContainerDeletion } from '@/portainer/services/modal.service/prompt';
-import { FeatureId } from 'Portainer/feature-flags/enums';
-import { ResourceControlType } from '@/portainer/access-control/types';
+import { FeatureId } from '@/portainer/feature-flags/enums';
+import { ResourceControlType } from '@/react/portainer/access-control/types';
 
 angular.module('portainer.docker').controller('ContainerController', [
   '$q',
@@ -52,6 +52,7 @@ angular.module('portainer.docker').controller('ContainerController', [
     $scope.activityTime = 0;
     $scope.portBindings = [];
     $scope.displayRecreateButton = false;
+    $scope.displayCreateWebhookButton = false;
     $scope.containerWebhookFeature = FeatureId.CONTAINER_WEBHOOK;
 
     $scope.config = {
@@ -75,6 +76,23 @@ angular.module('portainer.docker').controller('ContainerController', [
 
     $scope.onUpdateResourceControlSuccess = function () {
       $state.reload();
+    };
+
+    $scope.computeDockerGPUCommand = () => {
+      const gpuOptions = _.find($scope.container.HostConfig.DeviceRequests, function (o) {
+        return o.Driver === 'nvidia' || o.Capabilities[0][0] === 'gpu';
+      });
+      if (!gpuOptions) {
+        return 'No GPU config found';
+      }
+      let gpuStr = 'all';
+      if (gpuOptions.Count !== -1) {
+        gpuStr = `"device=${_.join(gpuOptions.DeviceIDs, ',')}"`;
+      }
+      // we only support a single set of capabilities for now
+      // creation UI needs to be reworked in order to support OR combinations of AND capabilities
+      const capStr = `"capabilities=${_.join(gpuOptions.Capabilities[0], ',')}"`;
+      return `${gpuStr},${capStr}`;
     };
 
     var update = function () {
@@ -133,6 +151,7 @@ angular.module('portainer.docker').controller('ContainerController', [
             !allowPrivilegedModeForRegularUsers;
 
           $scope.displayRecreateButton = !inSwarm && !autoRemove && (admin || !settingRestrictsRegularUsers);
+          $scope.displayCreateWebhookButton = $scope.displayRecreateButton;
         })
         .catch(function error(err) {
           Notifications.error('Failure', err, 'Unable to retrieve container info');
@@ -188,17 +207,22 @@ angular.module('portainer.docker').controller('ContainerController', [
 
     $scope.renameContainer = function () {
       var container = $scope.container;
+      if (container.newContainerName === $filter('trimcontainername')(container.Name)) {
+        $scope.container.edit = false;
+        return;
+      }
       ContainerService.renameContainer($transition$.params().id, container.newContainerName)
         .then(function success() {
           container.Name = container.newContainerName;
           Notifications.success('Container successfully renamed', container.Name);
         })
         .catch(function error(err) {
-          container.newContainerName = container.Name;
+          container.newContainerName = $filter('trimcontainername')(container.Name);
           Notifications.error('Failure', err, 'Unable to rename container');
         })
         .finally(function final() {
           $scope.container.edit = false;
+          $scope.$apply();
         });
     };
 
@@ -271,7 +295,7 @@ angular.module('portainer.docker').controller('ContainerController', [
     function removeContainer(cleanAssociatedVolumes) {
       ContainerService.remove($scope.container, cleanAssociatedVolumes)
         .then(function success() {
-          Notifications.success('Container successfully removed');
+          Notifications.success('Success', 'Container successfully removed');
           $state.go('docker.containers', {}, { reload: true });
         })
         .catch(function error(err) {
@@ -361,7 +385,7 @@ angular.module('portainer.docker').controller('ContainerController', [
       }
 
       function notifyAndChangeView() {
-        Notifications.success('Container successfully re-created');
+        Notifications.success('Success', 'Container successfully re-created');
         $state.go('docker.containers', {}, { reload: true });
       }
 
@@ -372,7 +396,8 @@ angular.module('portainer.docker').controller('ContainerController', [
     }
 
     $scope.recreate = function () {
-      ModalService.confirmContainerRecreation(function (result) {
+      const cannotPullImage = !$scope.container.Config.Image || $scope.container.Config.Image.toLowerCase().startsWith('sha256');
+      ModalService.confirmContainerRecreation(cannotPullImage, function (result) {
         if (!result) {
           return;
         }
@@ -394,7 +419,7 @@ angular.module('portainer.docker').controller('ContainerController', [
           Name: restartPolicy,
           MaximumRetryCount: maximumRetryCount,
         };
-        Notifications.success('Restart policy updated');
+        Notifications.success('Success', 'Restart policy updated');
       }
 
       function notifyOnError(err) {

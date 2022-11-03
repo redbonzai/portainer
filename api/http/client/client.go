@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/portainer/portainer/api"
+	portainer "github.com/portainer/portainer/api"
+
+	"github.com/rs/zerolog/log"
 )
 
 var errInvalidResponseStatus = errors.New("Invalid response status (expecting 200)")
@@ -90,11 +91,12 @@ func Get(url string, timeout int) ([]byte, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		log.Printf("[ERROR] [http,client] [message: unexpected status code] [status_code: %d]", response.StatusCode)
+		log.Error().Int("status_code", response.StatusCode).Msg("unexpected status code")
+
 		return nil, errInvalidResponseStatus
 	}
 
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}

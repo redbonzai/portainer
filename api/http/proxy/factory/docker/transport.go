@@ -6,8 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net/http"
 	"path"
 	"regexp"
@@ -21,6 +20,8 @@ import (
 	"github.com/portainer/portainer/api/http/proxy/factory/utils"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
+
+	"github.com/rs/zerolog/log"
 )
 
 var apiVersionRe = regexp.MustCompile(`(/v[0-9]\.[0-9]*)?`)
@@ -196,7 +197,7 @@ func (transport *Transport) proxyAgentRequest(r *http.Request) (*http.Response, 
 
 		r.Method = http.MethodPost
 
-		r.Body = ioutil.NopCloser(bytes.NewReader(newBody))
+		r.Body = io.NopCloser(bytes.NewReader(newBody))
 		r.ContentLength = int64(len(newBody))
 	}
 
@@ -422,6 +423,7 @@ func (transport *Transport) proxyImageRequest(request *http.Request) (*http.Resp
 
 func (transport *Transport) replaceRegistryAuthenticationHeader(request *http.Request) (*http.Response, error) {
 	transport.decorateRegistryAuthenticationHeader(request)
+
 	return transport.decorateGenericResourceCreationOperation(request, serviceObjectIdentifier, portainer.ServiceResourceControl)
 }
 
@@ -446,7 +448,20 @@ func (transport *Transport) decorateRegistryAuthenticationHeader(request *http.R
 			return err
 		}
 
-		authenticationHeader, err := createRegistryAuthenticationHeader(transport.dataStore, originalHeaderData.RegistryId, accessContext)
+		// delete header and exist function without error if Front End
+		// passes empty json. This is to restore original behavior which
+		// never originally passed this header
+		if string(decodedHeaderData) == "{}" {
+			request.Header.Del("X-Registry-Auth")
+			return nil
+		}
+
+		// only set X-Registry-Auth if registryId is defined
+		if originalHeaderData.RegistryId == nil {
+			return nil
+		}
+
+		authenticationHeader, err := createRegistryAuthenticationHeader(transport.dataStore, *originalHeaderData.RegistryId, accessContext)
 		if err != nil {
 			return err
 		}
@@ -588,7 +603,8 @@ func (transport *Transport) decorateGenericResourceCreationResponse(response *ht
 	}
 
 	if responseObject[resourceIdentifierAttribute] == nil {
-		log.Printf("[ERROR] [proxy,docker]")
+		log.Error().Msg("missing identifier in Docker resource creation response")
+
 		return errors.New("missing identifier in Docker resource creation response")
 	}
 
@@ -741,6 +757,7 @@ func (transport *Transport) createOperationContext(request *http.Request) (*rest
 		for _, membership := range teamMemberships {
 			userTeamIDs = append(userTeamIDs, membership.TeamID)
 		}
+
 		operationContext.userTeamIDs = userTeamIDs
 	}
 

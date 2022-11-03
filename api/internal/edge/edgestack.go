@@ -2,7 +2,8 @@ package edge
 
 import (
 	"errors"
-	"github.com/portainer/portainer/api"
+
+	portainer "github.com/portainer/portainer/api"
 )
 
 // EdgeStackRelatedEndpoints returns a list of environments(endpoints) related to this Edge stack

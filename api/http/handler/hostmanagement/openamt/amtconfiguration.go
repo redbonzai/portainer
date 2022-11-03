@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-	"software.sslmate.com/src/go-pkcs12"
-
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
+
+	"github.com/rs/zerolog/log"
+	"software.sslmate.com/src/go-pkcs12"
 )
 
 type openAMTConfigurePayload struct {
@@ -73,26 +73,27 @@ func (handler *Handler) openAMTConfigure(w http.ResponseWriter, r *http.Request)
 	var payload openAMTConfigurePayload
 	err := request.DecodeAndValidateJSONPayload(r, &payload)
 	if err != nil {
-		logrus.WithError(err).Error("Invalid request payload")
-		return &httperror.HandlerError{StatusCode: http.StatusBadRequest, Message: "Invalid request payload", Err: err}
+		log.Error().Err(err).Msg("invalid request payload")
+
+		return httperror.BadRequest("Invalid request payload", err)
 	}
 
 	if payload.Enabled {
 		certificateErr := validateCertificate(payload.CertFileContent, payload.CertFilePassword)
 		if certificateErr != nil {
-			return &httperror.HandlerError{StatusCode: http.StatusBadRequest, Message: "Error validating certificate", Err: certificateErr}
+			return httperror.BadRequest("Error validating certificate", certificateErr)
 		}
 
 		err = handler.enableOpenAMT(payload)
 		if err != nil {
-			return &httperror.HandlerError{StatusCode: http.StatusBadRequest, Message: "Error enabling OpenAMT", Err: err}
+			return httperror.BadRequest("Error enabling OpenAMT", err)
 		}
 		return response.Empty(w)
 	}
 
 	err = handler.disableOpenAMT()
 	if err != nil {
-		return &httperror.HandlerError{StatusCode: http.StatusBadRequest, Message: "Error disabling OpenAMT", Err: err}
+		return httperror.BadRequest("Error disabling OpenAMT", err)
 	}
 	return response.Empty(w)
 }
@@ -142,17 +143,20 @@ func (handler *Handler) enableOpenAMT(configurationPayload openAMTConfigurePaylo
 
 	err := handler.OpenAMTService.Configure(configuration)
 	if err != nil {
-		logrus.WithError(err).Error("error configuring OpenAMT server")
+		log.Error().Err(err).Msg("error configuring OpenAMT server")
+
 		return err
 	}
 
 	err = handler.saveConfiguration(configuration)
 	if err != nil {
-		logrus.WithError(err).Error("error updating OpenAMT configurations")
+		log.Error().Err(err).Msg("error updating OpenAMT configurations")
+
 		return err
 	}
 
-	logrus.Info("OpenAMT successfully enabled")
+	log.Info().Msg("OpenAMT successfully enabled")
+
 	return nil
 }
 
@@ -165,12 +169,8 @@ func (handler *Handler) saveConfiguration(configuration portainer.OpenAMTConfigu
 	configuration.MPSToken = ""
 
 	settings.OpenAMTConfiguration = configuration
-	err = handler.DataStore.Settings().UpdateSettings(settings)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return handler.DataStore.Settings().UpdateSettings(settings)
 }
 
 func (handler *Handler) disableOpenAMT() error {
@@ -186,6 +186,7 @@ func (handler *Handler) disableOpenAMT() error {
 		return err
 	}
 
-	logrus.Info("OpenAMT successfully disabled")
+	log.Info().Msg("OpenAMT successfully disabled")
+
 	return nil
 }

@@ -1,8 +1,9 @@
 package customtemplates
 
 import (
+	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -14,8 +15,10 @@ import (
 	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/filesystem"
+	gittypes "github.com/portainer/portainer/api/git/types"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
+	"github.com/rs/zerolog/log"
 )
 
 // @id CustomTemplateCreate
@@ -43,42 +46,42 @@ import (
 func (handler *Handler) customTemplateCreate(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	method, err := request.RetrieveQueryParameter(r, "method", false)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid query parameter: method", err}
+		return httperror.BadRequest("Invalid query parameter: method", err)
 	}
 
 	tokenData, err := security.RetrieveTokenData(r)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve user details from authentication token", err}
+		return httperror.InternalServerError("Unable to retrieve user details from authentication token", err)
 	}
 
 	customTemplate, err := handler.createCustomTemplate(method, r)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to create custom template", err}
+		return httperror.InternalServerError("Unable to create custom template", err)
 	}
 
 	customTemplate.CreatedByUserID = tokenData.ID
 
 	customTemplates, err := handler.DataStore.CustomTemplate().CustomTemplates()
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve custom templates from the database", err}
+		return httperror.InternalServerError("Unable to retrieve custom templates from the database", err)
 	}
 
 	for _, existingTemplate := range customTemplates {
 		if existingTemplate.Title == customTemplate.Title {
-			return &httperror.HandlerError{http.StatusInternalServerError, "Template name must be unique", errors.New("Template name must be unique")}
+			return httperror.InternalServerError("Template name must be unique", errors.New("Template name must be unique"))
 		}
 	}
 
 	err = handler.DataStore.CustomTemplate().Create(customTemplate)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to create custom template", err}
+		return httperror.InternalServerError("Unable to create custom template", err)
 	}
 
 	resourceControl := authorization.NewPrivateResourceControl(strconv.Itoa(int(customTemplate.ID)), portainer.CustomTemplateResourceControl, tokenData.ID)
 
 	err = handler.DataStore.ResourceControl().Create(resourceControl)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist resource control inside the database", err}
+		return httperror.InternalServerError("Unable to persist resource control inside the database", err)
 	}
 
 	customTemplate.ResourceControl = resourceControl
@@ -115,6 +118,8 @@ type customTemplateFromFileContentPayload struct {
 	Type portainer.StackType `example:"1" enums:"1,2,3" validate:"required"`
 	// Content of stack file
 	FileContent string `validate:"required"`
+	// Definitions of variables in the stack file
+	Variables []portainer.CustomTemplateVariableDefinition
 }
 
 func (payload *customTemplateFromFileContentPayload) Validate(r *http.Request) error {
@@ -136,7 +141,8 @@ func (payload *customTemplateFromFileContentPayload) Validate(r *http.Request) e
 	if !isValidNote(payload.Note) {
 		return errors.New("Invalid note. <img> tag is not supported")
 	}
-	return nil
+
+	return validateVariablesDefinitions(payload.Variables)
 }
 
 func isValidNote(note string) bool {
@@ -164,6 +170,7 @@ func (handler *Handler) createCustomTemplateFromFileContent(r *http.Request) (*p
 		Platform:    (payload.Platform),
 		Type:        (payload.Type),
 		Logo:        payload.Logo,
+		Variables:   payload.Variables,
 	}
 
 	templateFolder := strconv.Itoa(customTemplateID)
@@ -204,6 +211,8 @@ type customTemplateFromGitRepositoryPayload struct {
 	RepositoryPassword string `example:"myGitPassword"`
 	// Path to the Stack file inside the Git repository
 	ComposeFilePathInRepository string `example:"docker-compose.yml" default:"docker-compose.yml"`
+	// Definitions of variables in the stack file
+	Variables []portainer.CustomTemplateVariableDefinition
 }
 
 func (payload *customTemplateFromGitRepositoryPayload) Validate(r *http.Request) error {
@@ -236,7 +245,8 @@ func (payload *customTemplateFromGitRepositoryPayload) Validate(r *http.Request)
 	if !isValidNote(payload.Note) {
 		return errors.New("Invalid note. <img> tag is not supported")
 	}
-	return nil
+
+	return validateVariablesDefinitions(payload.Variables)
 }
 
 func (handler *Handler) createCustomTemplateFromGitRepository(r *http.Request) (*portainer.CustomTemplate, error) {
@@ -256,6 +266,7 @@ func (handler *Handler) createCustomTemplateFromGitRepository(r *http.Request) (
 		Platform:    payload.Platform,
 		Type:        payload.Type,
 		Logo:        payload.Logo,
+		Variables:   payload.Variables,
 	}
 
 	projectPath := handler.FileService.GetCustomTemplateProjectPath(strconv.Itoa(customTemplateID))
@@ -270,18 +281,23 @@ func (handler *Handler) createCustomTemplateFromGitRepository(r *http.Request) (
 
 	err = handler.GitService.CloneRepository(projectPath, payload.RepositoryURL, payload.RepositoryReferenceName, repositoryUsername, repositoryPassword)
 	if err != nil {
+		if err == gittypes.ErrAuthenticationFailure {
+			return nil, fmt.Errorf("invalid git credential")
+		}
 		return nil, err
 	}
+
 	isValidProject := true
 	defer func() {
 		if !isValidProject {
 			if err := handler.FileService.RemoveDirectory(projectPath); err != nil {
-				log.Printf("[WARN] [http,customtemplate,git] [error: %s] [message: unable to remove git repository directory]", err)
+				log.Warn().Err(err).Msg("unable to remove git repository directory")
 			}
 		}
 	}()
 
 	entryPath := filesystem.JoinPaths(projectPath, customTemplate.EntryPoint)
+
 	exists, err := handler.FileService.FileExists(entryPath)
 	if err != nil || !exists {
 		isValidProject = false
@@ -316,6 +332,8 @@ type customTemplateFromFileUploadPayload struct {
 	Platform    portainer.CustomTemplatePlatform
 	Type        portainer.StackType
 	FileContent []byte
+	// Definitions of variables in the stack file
+	Variables []portainer.CustomTemplateVariableDefinition
 }
 
 func (payload *customTemplateFromFileUploadPayload) Validate(r *http.Request) error {
@@ -361,6 +379,14 @@ func (payload *customTemplateFromFileUploadPayload) Validate(r *http.Request) er
 	}
 	payload.FileContent = composeFileContent
 
+	varsString, _ := request.RetrieveMultiPartFormValue(r, "Variables", true)
+	if varsString != "" {
+		err = json.Unmarshal([]byte(varsString), &payload.Variables)
+		if err != nil {
+			return errors.New("Invalid variables. Ensure that the variables are valid JSON")
+		}
+		return validateVariablesDefinitions(payload.Variables)
+	}
 	return nil
 }
 
@@ -381,6 +407,7 @@ func (handler *Handler) createCustomTemplateFromFileUpload(r *http.Request) (*po
 		Type:        payload.Type,
 		Logo:        payload.Logo,
 		EntryPoint:  filesystem.ComposeFileDefaultName,
+		Variables:   payload.Variables,
 	}
 
 	templateFolder := strconv.Itoa(customTemplateID)

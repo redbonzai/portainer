@@ -31,6 +31,8 @@ type customTemplateUpdatePayload struct {
 	Type portainer.StackType `example:"1" enums:"1,2,3" validate:"required"`
 	// Content of stack file
 	FileContent string `validate:"required"`
+	// Definitions of variables in the stack file
+	Variables []portainer.CustomTemplateVariableDefinition
 }
 
 func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
@@ -52,7 +54,8 @@ func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
 	if !isValidNote(payload.Note) {
 		return errors.New("Invalid note. <img> tag is not supported")
 	}
-	return nil
+
+	return validateVariablesDefinitions(payload.Variables)
 }
 
 // @id CustomTemplateUpdate
@@ -75,47 +78,47 @@ func (payload *customTemplateUpdatePayload) Validate(r *http.Request) error {
 func (handler *Handler) customTemplateUpdate(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	customTemplateID, err := request.RetrieveNumericRouteVariableValue(r, "id")
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid Custom template identifier route variable", err}
+		return httperror.BadRequest("Invalid Custom template identifier route variable", err)
 	}
 
 	var payload customTemplateUpdatePayload
 	err = request.DecodeAndValidateJSONPayload(r, &payload)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid request payload", err}
+		return httperror.BadRequest("Invalid request payload", err)
 	}
 
 	customTemplates, err := handler.DataStore.CustomTemplate().CustomTemplates()
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve custom templates from the database", err}
+		return httperror.InternalServerError("Unable to retrieve custom templates from the database", err)
 	}
 
 	for _, existingTemplate := range customTemplates {
 		if existingTemplate.ID != portainer.CustomTemplateID(customTemplateID) && existingTemplate.Title == payload.Title {
-			return &httperror.HandlerError{http.StatusInternalServerError, "Template name must be unique", errors.New("Template name must be unique")}
+			return httperror.InternalServerError("Template name must be unique", errors.New("Template name must be unique"))
 		}
 	}
 
 	customTemplate, err := handler.DataStore.CustomTemplate().CustomTemplate(portainer.CustomTemplateID(customTemplateID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
-		return &httperror.HandlerError{http.StatusNotFound, "Unable to find a custom template with the specified identifier inside the database", err}
+		return httperror.NotFound("Unable to find a custom template with the specified identifier inside the database", err)
 	} else if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find a custom template with the specified identifier inside the database", err}
+		return httperror.InternalServerError("Unable to find a custom template with the specified identifier inside the database", err)
 	}
 
 	securityContext, err := security.RetrieveRestrictedRequestContext(r)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve info from request context", err}
+		return httperror.InternalServerError("Unable to retrieve info from request context", err)
 	}
 
 	access := userCanEditTemplate(customTemplate, securityContext)
 	if !access {
-		return &httperror.HandlerError{http.StatusForbidden, "Access denied to resource", httperrors.ErrResourceAccessDenied}
+		return httperror.Forbidden("Access denied to resource", httperrors.ErrResourceAccessDenied)
 	}
 
 	templateFolder := strconv.Itoa(customTemplateID)
 	_, err = handler.FileService.StoreCustomTemplateFileFromBytes(templateFolder, customTemplate.EntryPoint, []byte(payload.FileContent))
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist updated custom template file on disk", err}
+		return httperror.InternalServerError("Unable to persist updated custom template file on disk", err)
 	}
 
 	customTemplate.Title = payload.Title
@@ -124,10 +127,11 @@ func (handler *Handler) customTemplateUpdate(w http.ResponseWriter, r *http.Requ
 	customTemplate.Note = payload.Note
 	customTemplate.Platform = payload.Platform
 	customTemplate.Type = payload.Type
+	customTemplate.Variables = payload.Variables
 
 	err = handler.DataStore.CustomTemplate().UpdateCustomTemplate(customTemplate.ID, customTemplate)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist custom template changes inside the database", err}
+		return httperror.InternalServerError("Unable to persist custom template changes inside the database", err)
 	}
 
 	return response.JSON(w, customTemplate)

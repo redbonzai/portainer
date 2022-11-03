@@ -1,22 +1,28 @@
 import clsx from 'clsx';
 import _ from 'lodash';
+import { Edit2, Tag, Cpu } from 'react-feather';
 
 import {
   isoDateFromTimestamp,
   humanize,
   stripProtocol,
 } from '@/portainer/filters/filters';
-import { type Environment, PlatformType } from '@/portainer/environments/types';
+import {
+  type Environment,
+  PlatformType,
+} from '@/react/portainer/environments/types';
 import {
   getPlatformType,
   isDockerEnvironment,
   isEdgeEnvironment,
-} from '@/portainer/environments/utils';
+} from '@/react/portainer/environments/utils';
 import type { TagId } from '@/portainer/tags/types';
-import { Button } from '@/portainer/components/Button';
-import { Link } from '@/portainer/components/Link';
-import { useIsAdmin } from '@/portainer/hooks/useUser';
 import { useTags } from '@/portainer/tags/queries';
+import { useUser } from '@/portainer/hooks/useUser';
+
+import { Icon } from '@@/Icon';
+import { Link } from '@@/Link';
+import { Button } from '@@/buttons';
 
 import { EnvironmentIcon } from './EnvironmentIcon';
 import { EdgeIndicator } from './EdgeIndicator';
@@ -31,7 +37,7 @@ interface Props {
 }
 
 export function EnvironmentItem({ environment, onClick, groupName }: Props) {
-  const isAdmin = useIsAdmin();
+  const { isAdmin } = useUser();
   const isEdge = isEdgeEnvironment(environment.Type);
 
   const snapshotTime = getSnapshotTime(environment);
@@ -43,12 +49,11 @@ export function EnvironmentItem({ environment, onClick, groupName }: Props) {
     <div className={styles.root}>
       <button
         type="button"
-        color="link"
         onClick={() => onClick(environment)}
         className={styles.wrapperButton}
       >
         <Link
-          className={clsx('blocklist-item', styles.item)}
+          className={clsx('blocklist-item no-link', styles.item)}
           to={route}
           params={{
             endpointId: environment.Id,
@@ -68,10 +73,8 @@ export function EnvironmentItem({ environment, onClick, groupName }: Props) {
                   <span className="space-left blocklist-item-subtitle">
                     {isEdge ? (
                       <EdgeIndicator
-                        edgeId={environment.EdgeID}
-                        checkInInterval={environment.EdgeCheckinInterval}
-                        lastCheckInDate={environment.LastCheckInDate}
-                        queryDate={environment.QueryDate}
+                        environment={environment}
+                        showLastCheckInDate
                       />
                     ) : (
                       <>
@@ -92,22 +95,35 @@ export function EnvironmentItem({ environment, onClick, groupName }: Props) {
               </div>
               <EnvironmentStats environment={environment} />
               <div className="blocklist-item-line endpoint-item">
-                <span className="small text-muted">
+                <span className="small text-muted space-x-2">
                   {isDockerEnvironment(environment.Type) && (
                     <span>
                       {environment.Snapshots.length > 0 && (
-                        <span className="small text-muted">
-                          <i className="fa fa-microchip space-right" />
-                          {environment.Snapshots[0].TotalCPU}
-                          <i className="fa fa-memory space-left space-right" />
-                          {humanize(environment.Snapshots[0].TotalMemory)}
+                        <span className="small text-muted vertical-center">
+                          <Cpu
+                            className="icon icon-sm space-right"
+                            aria-hidden="true"
+                          />
+                          {environment.Snapshots[0].TotalCPU} CPU
+                          <Icon
+                            icon="svg-memory"
+                            className="icon icon-sm space-right"
+                          />
+                          {humanize(environment.Snapshots[0].TotalMemory)} RAM
+                          <Cpu
+                            className="icon icon-sm space-right"
+                            aria-hidden="true"
+                          />
+                          {environment.Gpus?.length} GPU
                         </span>
                       )}
-                      <span className="space-left space-right">-</span>
                     </span>
                   )}
-                  <span>
-                    <i className="fa fa-tags space-right" aria-hidden="true" />
+                  <span className="vertical-center">
+                    <Tag
+                      className="icon icon-sm space-right"
+                      aria-hidden="true"
+                    />
                     {tags}
                   </span>
                 </span>
@@ -128,7 +144,7 @@ export function EnvironmentItem({ environment, onClick, groupName }: Props) {
           className={styles.editButton}
         >
           <Button color="link">
-            <i className="fa fa-pencil-alt" />
+            <Edit2 className="icon icon-md" aria-hidden="true" />
           </Button>
         </Link>
       )}

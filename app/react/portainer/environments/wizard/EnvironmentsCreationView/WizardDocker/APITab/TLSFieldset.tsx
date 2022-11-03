@@ -1,13 +1,10 @@
 import { useFormikContext } from 'formik';
 
-import { FileUploadField } from '@/portainer/components/form-components/FileUpload';
-import { SwitchField } from '@/portainer/components/form-components/SwitchField';
-import { FormControl } from '@/portainer/components/form-components/FormControl';
-import {
-  file,
-  withFileSize,
-  withFileType,
-} from '@/portainer/helpers/yup-file-validation';
+import { file, withFileSize } from '@/portainer/helpers/yup-file-validation';
+
+import { FileUploadField } from '@@/form-components/FileUpload';
+import { SwitchField } from '@@/form-components/SwitchField';
+import { FormControl } from '@@/form-components/FormControl';
 
 import { FormValues } from './types';
 
@@ -20,6 +17,7 @@ export function TLSFieldset() {
         <div className="col-sm-12">
           <SwitchField
             label="TLS"
+            labelClass="col-sm-3 col-lg-2"
             checked={values.tls}
             onChange={(checked) => setFieldValue('tls', checked)}
           />
@@ -82,16 +80,9 @@ export function TLSFieldset() {
 }
 
 const MAX_FILE_SIZE = 5_242_880; // 5MB
-const ALLOWED_FILE_TYPES = [
-  'application/x-x509-ca-cert',
-  'application/x-pem-file',
-];
 
 function certValidation() {
-  return withFileType(
-    withFileSize(file(), MAX_FILE_SIZE),
-    ALLOWED_FILE_TYPES
-  ).when(['tls', 'skipVerify'], {
+  return withFileSize(file(), MAX_FILE_SIZE).when(['tls', 'skipVerify'], {
     is: (tls: boolean, skipVerify: boolean) => tls && !skipVerify,
     then: (schema) => schema.required('File is required'),
   });

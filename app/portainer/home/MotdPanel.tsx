@@ -1,18 +1,22 @@
 import { useQuery } from 'react-query';
 import _ from 'lodash';
 
-import { useUIState } from '@/portainer/hooks/UIStateProvider';
+import { useUIState } from '@/portainer/hooks/useUIState';
 
-import { InformationPanel } from '../components/InformationPanel/InformationPanel';
+import { InformationPanel } from '@@/InformationPanel';
 
 import { getMotd } from './home.service';
 
 export function MotdPanel() {
   const motd = useMotd();
 
-  const [uiState, setUIState] = useUIState();
+  const uiStateStore = useUIState();
 
-  if (!motd || motd.Message === '' || motd.Hash === uiState.dismissedInfoHash) {
+  if (
+    !motd ||
+    motd.Message === '' ||
+    motd.Hash === uiStateStore.dismissedInfoHash
+  ) {
     return null;
   }
 
@@ -34,10 +38,7 @@ export function MotdPanel() {
   );
 
   function onDismiss(hash: string) {
-    setUIState({
-      ...uiState,
-      dismissedInfoHash: hash,
-    });
+    uiStateStore.dismissMotd(hash);
   }
 }
 

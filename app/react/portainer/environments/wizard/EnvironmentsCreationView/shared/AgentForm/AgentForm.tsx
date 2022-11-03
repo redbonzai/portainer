@@ -1,20 +1,24 @@
 import { Form, Formik } from 'formik';
 import { useReducer } from 'react';
 
-import { LoadingButton } from '@/portainer/components/Button/LoadingButton';
-import { useCreateAgentEnvironmentMutation } from '@/portainer/environments/queries/useCreateEnvironmentMutation';
+import { useCreateAgentEnvironmentMutation } from '@/react/portainer/environments/queries/useCreateEnvironmentMutation';
 import { notifySuccess } from '@/portainer/services/notifications';
-import { Environment } from '@/portainer/environments/types';
-import { CreateAgentEnvironmentValues } from '@/portainer/environments/environment.service/create';
+import { Environment } from '@/react/portainer/environments/types';
+import { CreateAgentEnvironmentValues } from '@/react/portainer/environments/environment.service/create';
+
+import { LoadingButton } from '@@/buttons/LoadingButton';
+import { Icon } from '@@/Icon';
 
 import { NameField } from '../NameField';
-import { MetadataFieldset } from '../MetadataFieldset';
+import { MoreSettingsSection } from '../MoreSettingsSection';
+import { Hardware } from '../Hardware/Hardware';
 
 import { EnvironmentUrlField } from './EnvironmentUrlField';
-import { validation } from './AgentForm.validation';
+import { useValidation } from './AgentForm.validation';
 
 interface Props {
   onCreate(environment: Environment): void;
+  showGpus?: boolean;
 }
 
 const initialValues: CreateAgentEnvironmentValues = {
@@ -24,12 +28,14 @@ const initialValues: CreateAgentEnvironmentValues = {
     groupId: 1,
     tagIds: [],
   },
+  gpus: [],
 };
 
-export function AgentForm({ onCreate }: Props) {
+export function AgentForm({ onCreate, showGpus = false }: Props) {
   const [formKey, clearForm] = useReducer((state) => state + 1, 0);
 
   const mutation = useCreateAgentEnvironmentMutation();
+  const validation = useValidation();
 
   return (
     <Formik
@@ -44,17 +50,21 @@ export function AgentForm({ onCreate }: Props) {
           <NameField />
           <EnvironmentUrlField />
 
-          <MetadataFieldset />
+          <MoreSettingsSection>{showGpus && <Hardware />}</MoreSettingsSection>
 
           <div className="form-group">
             <div className="col-sm-12">
               <LoadingButton
-                className="wizard-connect-button"
+                className="wizard-connect-button vertical-center"
                 loadingText="Connecting environment..."
                 isLoading={mutation.isLoading}
                 disabled={!dirty || !isValid}
               >
-                <i className="fa fa-plug" aria-hidden="true" /> Connect
+                <Icon
+                  icon="svg-plug"
+                  className="icon icon-sm vertical-center"
+                />{' '}
+                Connect
               </LoadingButton>
             </div>
           </div>

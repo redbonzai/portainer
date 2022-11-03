@@ -2,13 +2,14 @@ package migrator
 
 import (
 	"fmt"
-	"log"
-
-	"github.com/portainer/portainer/api/dataservices/errors"
 
 	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/dataservices/errors"
 	"github.com/portainer/portainer/api/internal/endpointutils"
 	snapshotutils "github.com/portainer/portainer/api/internal/snapshot"
+
+	"github.com/docker/docker/api/types/volume"
+	"github.com/rs/zerolog/log"
 )
 
 func (m *Migrator) migrateDBVersionToDB32() error {
@@ -38,7 +39,8 @@ func (m *Migrator) migrateDBVersionToDB32() error {
 }
 
 func (m *Migrator) updateRegistriesToDB32() error {
-	migrateLog.Info("- updating registries")
+	log.Info().Msg("updating registries")
+
 	registries, err := m.registryService.Registries()
 	if err != nil {
 		return err
@@ -81,7 +83,8 @@ func (m *Migrator) updateRegistriesToDB32() error {
 }
 
 func (m *Migrator) updateDockerhubToDB32() error {
-	migrateLog.Info("- updating dockerhub")
+	log.Info().Msg("updating dockerhub")
+
 	dockerhub, err := m.dockerhubService.DockerHub()
 	if err == errors.ErrObjectNotFound {
 		return nil
@@ -170,7 +173,8 @@ func (m *Migrator) updateDockerhubToDB32() error {
 }
 
 func (m *Migrator) updateVolumeResourceControlToDB32() error {
-	migrateLog.Info("- updating resource controls")
+	log.Info().Msg("updating resource controls")
+
 	endpoints, err := m.endpointService.Endpoints()
 	if err != nil {
 		return fmt.Errorf("failed fetching environments: %w", err)
@@ -198,7 +202,7 @@ func (m *Migrator) updateVolumeResourceControlToDB32() error {
 
 		totalSnapshots := len(endpoint.Snapshots)
 		if totalSnapshots == 0 {
-			log.Println("[DEBUG] [volume migration] [message: no snapshot found]")
+			log.Debug().Msg("no snapshot found")
 			continue
 		}
 
@@ -206,52 +210,46 @@ func (m *Migrator) updateVolumeResourceControlToDB32() error {
 
 		endpointDockerID, err := snapshotutils.FetchDockerID(snapshot)
 		if err != nil {
-			log.Printf("[WARN] [database,migrator,v31] [message: failed fetching environment docker id] [err: %s]", err)
+			log.Warn().Err(err).Msg("failed fetching environment docker id")
 			continue
 		}
 
-		if volumesData, done := snapshot.SnapshotRaw.Volumes.(map[string]interface{}); done {
-			if volumesData["Volumes"] == nil {
-				log.Println("[DEBUG] [volume migration] [message: no volume data found]")
-				continue
-			}
-
-			findResourcesToUpdateForDB32(endpointDockerID, volumesData, toUpdate, volumeResourceControls)
+		volumesData := snapshot.SnapshotRaw.Volumes
+		if volumesData.Volumes == nil {
+			log.Debug().Msg("no volume data found")
+			continue
 		}
+
+		findResourcesToUpdateForDB32(endpointDockerID, volumesData, toUpdate, volumeResourceControls)
+
 	}
 
 	for _, resourceControl := range volumeResourceControls {
 		if newResourceID, ok := toUpdate[resourceControl.ID]; ok {
 			resourceControl.ResourceID = newResourceID
+
 			err := m.resourceControlService.UpdateResourceControl(resourceControl.ID, resourceControl)
 			if err != nil {
 				return fmt.Errorf("failed updating resource control %d: %w", resourceControl.ID, err)
 			}
-
 		} else {
 			err := m.resourceControlService.DeleteResourceControl(resourceControl.ID)
 			if err != nil {
 				return fmt.Errorf("failed deleting resource control %d: %w", resourceControl.ID, err)
 			}
-			log.Printf("[DEBUG] [volume migration] [message: legacy resource control(%s) has been deleted]", resourceControl.ResourceID)
+
+			log.Debug().Str("resource_id", resourceControl.ResourceID).Msg("legacy resource control has been deleted")
 		}
 	}
 
 	return nil
 }
 
-func findResourcesToUpdateForDB32(dockerID string, volumesData map[string]interface{}, toUpdate map[portainer.ResourceControlID]string, volumeResourceControls map[string]*portainer.ResourceControl) {
-	volumes := volumesData["Volumes"].([]interface{})
-	for _, volumeMeta := range volumes {
-		volume := volumeMeta.(map[string]interface{})
-		volumeName, nameExist := volume["Name"].(string)
-		if !nameExist {
-			continue
-		}
-		createTime, createTimeExist := volume["CreatedAt"].(string)
-		if !createTimeExist {
-			continue
-		}
+func findResourcesToUpdateForDB32(dockerID string, volumesData volume.VolumeListOKBody, toUpdate map[portainer.ResourceControlID]string, volumeResourceControls map[string]*portainer.ResourceControl) {
+	volumes := volumesData.Volumes
+	for _, volume := range volumes {
+		volumeName := volume.Name
+		createTime := volume.CreatedAt
 
 		oldResourceID := fmt.Sprintf("%s%s", volumeName, createTime)
 		resourceControl, ok := volumeResourceControls[oldResourceID]
@@ -263,21 +261,25 @@ func findResourcesToUpdateForDB32(dockerID string, volumesData map[string]interf
 }
 
 func (m *Migrator) kubeconfigExpiryToDB32() error {
-	migrateLog.Info("- updating kubeconfig expiry")
+	log.Info().Msg("updating kubeconfig expiry")
+
 	settings, err := m.settingsService.Settings()
 	if err != nil {
 		return err
 	}
+
 	settings.KubeconfigExpiry = portainer.DefaultKubeconfigExpiry
 	return m.settingsService.UpdateSettings(settings)
 }
 
 func (m *Migrator) helmRepositoryURLToDB32() error {
-	migrateLog.Info("- setting default helm repository URL")
+	log.Info().Msg("setting default helm repository URL")
+
 	settings, err := m.settingsService.Settings()
 	if err != nil {
 		return err
 	}
+
 	settings.HelmRepositoryURL = portainer.DefaultHelmRepositoryURL
 	return m.settingsService.UpdateSettings(settings)
 }

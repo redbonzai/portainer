@@ -1,11 +1,11 @@
 package teammemberships
 
 import (
+	"net/http"
+
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/http/security"
-
-	"net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -21,14 +21,13 @@ func NewHandler(bouncer *security.RequestBouncer) *Handler {
 	h := &Handler{
 		Router: mux.NewRouter(),
 	}
-	h.Handle("/team_memberships",
-		bouncer.AdminAccess(httperror.LoggerHandler(h.teamMembershipCreate))).Methods(http.MethodPost)
-	h.Handle("/team_memberships",
-		bouncer.AdminAccess(httperror.LoggerHandler(h.teamMembershipList))).Methods(http.MethodGet)
-	h.Handle("/team_memberships/{id}",
-		bouncer.AdminAccess(httperror.LoggerHandler(h.teamMembershipUpdate))).Methods(http.MethodPut)
-	h.Handle("/team_memberships/{id}",
-		bouncer.AdminAccess(httperror.LoggerHandler(h.teamMembershipDelete))).Methods(http.MethodDelete)
+
+	h.Use(bouncer.TeamLeaderAccess)
+
+	h.Handle("/team_memberships", httperror.LoggerHandler(h.teamMembershipCreate)).Methods(http.MethodPost)
+	h.Handle("/team_memberships", httperror.LoggerHandler(h.teamMembershipList)).Methods(http.MethodGet)
+	h.Handle("/team_memberships/{id}", httperror.LoggerHandler(h.teamMembershipUpdate)).Methods(http.MethodPut)
+	h.Handle("/team_memberships/{id}", httperror.LoggerHandler(h.teamMembershipDelete)).Methods(http.MethodDelete)
 
 	return h
 }

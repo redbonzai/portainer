@@ -1,17 +1,18 @@
 import { Field, useField } from 'formik';
 
-import { FormControl } from '@/portainer/components/form-components/FormControl';
-import { Input } from '@/portainer/components/form-components/Input';
+import { FormControl } from '@@/form-components/FormControl';
+import { Input } from '@@/form-components/Input';
 
 export function EnvironmentUrlField() {
   const [, meta] = useField('environmentUrl');
 
   return (
     <FormControl
-      label="Environment URL"
+      label="Environment address"
       errors={meta.error}
       required
       inputId="environment-url-field"
+      tooltip="<HOST>:<PORT> or <IP>:<PORT>"
     >
       <Field
         id="environment-url-field"

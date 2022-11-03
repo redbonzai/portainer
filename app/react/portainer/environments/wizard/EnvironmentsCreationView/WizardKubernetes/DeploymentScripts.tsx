@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
-import { CopyButton } from '@/portainer/components/Button/CopyButton';
-import { Code } from '@/portainer/components/Code';
-import { FormSectionTitle } from '@/portainer/components/form-components/FormSectionTitle';
-import { NavTabs } from '@/portainer/components/NavTabs/NavTabs';
 import { getAgentShortVersion } from '@/portainer/views/endpoints/helpers';
-import { useAgentDetails } from '@/portainer/environments/queries/useAgentDetails';
+import { useAgentDetails } from '@/react/portainer/environments/queries/useAgentDetails';
+
+import { CopyButton } from '@@/buttons/CopyButton';
+import { Code } from '@@/Code';
+import { FormSectionTitle } from '@@/form-components/FormSectionTitle';
+import { NavTabs } from '@@/NavTabs';
 
 const deployments = [
   {
@@ -72,13 +73,13 @@ export function DeploymentScripts() {
 function kubeNodePortCommand(agentVersion: string) {
   const agentShortVersion = getAgentShortVersion(agentVersion);
 
-  return `curl -L https://downloads.portainer.io/ee${agentShortVersion}/portainer-agent-k8s-nodeport.yaml -o portainer-agent-k8s.yaml; kubectl apply -f portainer-agent-k8s.yaml`;
+  return `kubectl apply -f https://downloads.portainer.io/ce${agentShortVersion}/portainer-agent-k8s-nodeport.yaml`;
 }
 
 function kubeLoadBalancerCommand(agentVersion: string) {
   const agentShortVersion = getAgentShortVersion(agentVersion);
 
-  return `curl -L https://downloads.portainer.io/ee${agentShortVersion}/portainer-agent-k8s-lb.yaml -o portainer-agent-k8s.yaml; kubectl apply -f portainer-agent-k8s.yaml`;
+  return `kubectl apply -f https://downloads.portainer.io/ce${agentShortVersion}/portainer-agent-k8s-lb.yaml`;
 }
 
 interface LoadBalancerProps {
@@ -106,9 +107,7 @@ function DeployCode({
         </p>
       )}
       <Code>{code}</Code>
-      <CopyButton copyText={code} className="my-6">
-        Copy command
-      </CopyButton>
+      <CopyButton copyText={code}>Copy command</CopyButton>
     </>
   );
 }

@@ -29,10 +29,7 @@ type resourceControlCreatePayload struct {
 	SubResourceIDs []string `example:"617c5f22bb9b023d6daab7cba43a57576f83492867bc767d1c59416b065e5f08"`
 }
 
-var (
-	errResourceControlAlreadyExists = errors.New("A resource control is already applied on this resource") //http/resourceControl
-	errInvalidResourceControlType   = errors.New("Unsupported resource control type")                      //http/resourceControl
-)
+var errResourceControlAlreadyExists = errors.New("A resource control is already applied on this resource") //http/resourceControl
 
 func (payload *resourceControlCreatePayload) Validate(r *http.Request) error {
 	if govalidator.IsNull(payload.ResourceID) {
@@ -72,15 +69,15 @@ func (handler *Handler) resourceControlCreate(w http.ResponseWriter, r *http.Req
 	var payload resourceControlCreatePayload
 	err := request.DecodeAndValidateJSONPayload(r, &payload)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid request payload", err}
+		return httperror.BadRequest("Invalid request payload", err)
 	}
 
 	rc, err := handler.DataStore.ResourceControl().ResourceControlByResourceIDAndType(payload.ResourceID, payload.Type)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve resource controls from the database", err}
+		return httperror.InternalServerError("Unable to retrieve resource controls from the database", err)
 	}
 	if rc != nil {
-		return &httperror.HandlerError{http.StatusConflict, "A resource control is already associated to this resource", errResourceControlAlreadyExists}
+		return &httperror.HandlerError{StatusCode: http.StatusConflict, Message: "A resource control is already associated to this resource", Err: errResourceControlAlreadyExists}
 	}
 
 	var userAccesses = make([]portainer.UserResourceAccess, 0)
@@ -113,7 +110,7 @@ func (handler *Handler) resourceControlCreate(w http.ResponseWriter, r *http.Req
 
 	err = handler.DataStore.ResourceControl().Create(&resourceControl)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist the resource control inside the database", err}
+		return httperror.InternalServerError("Unable to persist the resource control inside the database", err)
 	}
 
 	return response.JSON(w, resourceControl)

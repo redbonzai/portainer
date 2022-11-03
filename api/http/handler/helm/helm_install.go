@@ -2,7 +2,6 @@ package helm
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -53,20 +52,12 @@ func (handler *Handler) helmInstall(w http.ResponseWriter, r *http.Request) *htt
 	var payload installChartPayload
 	err := request.DecodeAndValidateJSONPayload(r, &payload)
 	if err != nil {
-		return &httperror.HandlerError{
-			StatusCode: http.StatusBadRequest,
-			Message:    "Invalid Helm install payload",
-			Err:        err,
-		}
+		return httperror.BadRequest("Invalid Helm install payload", err)
 	}
 
 	release, err := handler.installChart(r, payload)
 	if err != nil {
-		return &httperror.HandlerError{
-			StatusCode: http.StatusInternalServerError,
-			Message:    "Unable to install a chart",
-			Err:        err,
-		}
+		return httperror.InternalServerError("Unable to install a chart", err)
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -200,7 +191,7 @@ func (handler *Handler) updateHelmAppManifest(r *http.Request, manifest []byte, 
 	for _, resource := range yamlResources {
 		resource := resource // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
-			tmpfile, err := ioutil.TempFile("", "helm-manifest-*")
+			tmpfile, err := os.CreateTemp("", "helm-manifest-*")
 			if err != nil {
 				return errors.Wrap(err, "failed to create a tmp helm manifest file")
 			}

@@ -2,14 +2,16 @@ package docker
 
 import (
 	"context"
-	"log"
 	"strings"
 	"time"
 
+	portainer "github.com/portainer/portainer/api"
+
 	"github.com/docker/docker/api/types"
+	_container "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"github.com/portainer/portainer/api"
+	"github.com/rs/zerolog/log"
 )
 
 // Snapshotter represents a service used to create environment(endpoint) snapshots
@@ -47,44 +49,44 @@ func snapshot(cli *client.Client, endpoint *portainer.Endpoint) (*portainer.Dock
 
 	err = snapshotInfo(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot engine information] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot engine information")
 	}
 
 	if snapshot.Swarm {
 		err = snapshotSwarmServices(snapshot, cli)
 		if err != nil {
-			log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot Swarm services] [environment: %s] [err: %s]", endpoint.Name, err)
+			log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot Swarm services")
 		}
 
 		err = snapshotNodes(snapshot, cli)
 		if err != nil {
-			log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot Swarm nodes] [environment: %s] [err: %s]", endpoint.Name, err)
+			log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot Swarm nodes")
 		}
 	}
 
 	err = snapshotContainers(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot containers] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot containers")
 	}
 
 	err = snapshotImages(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot images] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot images")
 	}
 
 	err = snapshotVolumes(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot volumes] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot volumes")
 	}
 
 	err = snapshotNetworks(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot networks] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot networks")
 	}
 
 	err = snapshotVersion(snapshot, cli)
 	if err != nil {
-		log.Printf("[WARN] [docker,snapshot] [message: unable to snapshot engine version] [environment: %s] [err: %s]", endpoint.Name, err)
+		log.Warn().Str("environment", endpoint.Name).Err(err).Msg("unable to snapshot engine version")
 	}
 
 	snapshot.Time = time.Now().Unix()
@@ -154,11 +156,35 @@ func snapshotContainers(snapshot *portainer.DockerSnapshot, cli *client.Client) 
 	healthyContainers := 0
 	unhealthyContainers := 0
 	stacks := make(map[string]struct{})
+	gpuUseSet := make(map[string]struct{})
+	gpuUseAll := false
 	for _, container := range containers {
-		if container.State == "exited" {
+		if container.State == "exited" || container.State == "stopped" {
 			stoppedContainers++
 		} else if container.State == "running" {
 			runningContainers++
+
+			// snapshot GPUs
+			response, err := cli.ContainerInspect(context.Background(), container.ID)
+			if err != nil {
+				return err
+			}
+
+			var gpuOptions *_container.DeviceRequest = nil
+			for _, deviceRequest := range response.HostConfig.Resources.DeviceRequests {
+				if deviceRequest.Driver == "nvidia" || deviceRequest.Capabilities[0][0] == "gpu" {
+					gpuOptions = &deviceRequest
+				}
+			}
+
+			if gpuOptions != nil {
+				if gpuOptions.Count == -1 {
+					gpuUseAll = true
+				}
+				for _, id := range gpuOptions.DeviceIDs {
+					gpuUseSet[id] = struct{}{}
+				}
+			}
 		}
 
 		if strings.Contains(container.Status, "(healthy)") {
@@ -168,11 +194,19 @@ func snapshotContainers(snapshot *portainer.DockerSnapshot, cli *client.Client) 
 		}
 
 		for k, v := range container.Labels {
-			if k == "com.docker.compose.project" {
+			if k == ComposeStackNameLabel {
 				stacks[v] = struct{}{}
 			}
 		}
 	}
+
+	gpuUseList := make([]string, 0, len(gpuUseSet))
+	for gpuUse := range gpuUseSet {
+		gpuUseList = append(gpuUseList, gpuUse)
+	}
+
+	snapshot.GpuUseAll = gpuUseAll
+	snapshot.GpuUseList = gpuUseList
 
 	snapshot.RunningContainerCount = runningContainers
 	snapshot.StoppedContainerCount = stoppedContainers

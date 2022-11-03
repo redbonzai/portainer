@@ -22,9 +22,10 @@ type settingsUpdatePayload struct {
 	// A list of label name & value that will be used to hide containers when querying containers
 	BlackListedLabels []portainer.Pair
 	// Active authentication method for the Portainer instance. Valid values are: 1 for internal, 2 for LDAP, or 3 for oauth
-	AuthenticationMethod *int                     `example:"1"`
-	LDAPSettings         *portainer.LDAPSettings  `example:""`
-	OAuthSettings        *portainer.OAuthSettings `example:""`
+	AuthenticationMethod *int                            `example:"1"`
+	InternalAuthSettings *portainer.InternalAuthSettings `example:""`
+	LDAPSettings         *portainer.LDAPSettings         `example:""`
+	OAuthSettings        *portainer.OAuthSettings        `example:""`
 	// The interval in which environment(endpoint) snapshots are created
 	SnapshotInterval *string `example:"5m"`
 	// URL to the templates that will be displayed in the UI when navigating to App Templates
@@ -105,12 +106,12 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 	var payload settingsUpdatePayload
 	err := request.DecodeAndValidateJSONPayload(r, &payload)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusBadRequest, "Invalid request payload", err}
+		return httperror.BadRequest("Invalid request payload", err)
 	}
 
 	settings, err := handler.DataStore.Settings().Settings()
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve the settings from the database", err}
+		return httperror.InternalServerError("Unable to retrieve the settings from the database", err)
 	}
 
 	if handler.demoService.IsDemo() {
@@ -138,9 +139,8 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 			if newHelmRepo != settings.HelmRepositoryURL && newHelmRepo != portainer.DefaultHelmRepositoryURL {
 				err := libhelm.ValidateHelmRepositoryURL(*payload.HelmRepositoryURL)
 				if err != nil {
-					return &httperror.HandlerError{http.StatusBadRequest, "Invalid Helm repository URL. Must correspond to a valid URL format", err}
+					return httperror.BadRequest("Invalid Helm repository URL. Must correspond to a valid URL format", err)
 				}
-
 			}
 
 			settings.HelmRepositoryURL = newHelmRepo
@@ -153,15 +153,22 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 		settings.BlackListedLabels = payload.BlackListedLabels
 	}
 
+	if payload.InternalAuthSettings != nil {
+		settings.InternalAuthSettings.RequiredPasswordLength = payload.InternalAuthSettings.RequiredPasswordLength
+	}
+
 	if payload.LDAPSettings != nil {
 		ldapReaderDN := settings.LDAPSettings.ReaderDN
 		ldapPassword := settings.LDAPSettings.Password
+
 		if payload.LDAPSettings.ReaderDN != "" {
 			ldapReaderDN = payload.LDAPSettings.ReaderDN
 		}
+
 		if payload.LDAPSettings.Password != "" {
 			ldapPassword = payload.LDAPSettings.Password
 		}
+
 		settings.LDAPSettings = *payload.LDAPSettings
 		settings.LDAPSettings.ReaderDN = ldapReaderDN
 		settings.LDAPSettings.Password = ldapPassword
@@ -200,7 +207,7 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 	if payload.SnapshotInterval != nil && *payload.SnapshotInterval != settings.SnapshotInterval {
 		err := handler.updateSnapshotInterval(settings, *payload.SnapshotInterval)
 		if err != nil {
-			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update snapshot interval", err}
+			return httperror.InternalServerError("Unable to update snapshot interval", err)
 		}
 	}
 
@@ -235,7 +242,7 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 
 	err = handler.DataStore.Settings().UpdateSettings(settings)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist settings changes inside the database", err}
+		return httperror.InternalServerError("Unable to persist settings changes inside the database", err)
 	}
 
 	return response.JSON(w, settings)
@@ -244,12 +251,7 @@ func (handler *Handler) settingsUpdate(w http.ResponseWriter, r *http.Request) *
 func (handler *Handler) updateSnapshotInterval(settings *portainer.Settings, snapshotInterval string) error {
 	settings.SnapshotInterval = snapshotInterval
 
-	err := handler.SnapshotService.SetSnapshotInterval(snapshotInterval)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return handler.SnapshotService.SetSnapshotInterval(snapshotInterval)
 }
 
 func (handler *Handler) updateTLS(settings *portainer.Settings) *httperror.HandlerError {
@@ -260,7 +262,7 @@ func (handler *Handler) updateTLS(settings *portainer.Settings) *httperror.Handl
 		settings.LDAPSettings.TLSConfig.TLSCACertPath = ""
 		err := handler.FileService.DeleteTLSFiles(filesystem.LDAPStorePath)
 		if err != nil {
-			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to remove TLS files from disk", err}
+			return httperror.InternalServerError("Unable to remove TLS files from disk", err)
 		}
 	}
 	return nil

@@ -21,7 +21,7 @@ import (
 func Test_userCreateAccessToken(t *testing.T) {
 	is := assert.New(t)
 
-	_, store, teardown := datastore.MustNewTestStore(true, true)
+	_, store, teardown := datastore.MustNewTestStore(t, true, true)
 	defer teardown()
 
 	// create admin and standard user(s)
@@ -39,8 +39,9 @@ func Test_userCreateAccessToken(t *testing.T) {
 	apiKeyService := apikey.NewAPIKeyService(store.APIKeyRepository(), store.User())
 	requestBouncer := security.NewRequestBouncer(store, jwtService, apiKeyService)
 	rateLimiter := security.NewRateLimiter(10, 1*time.Second, 1*time.Hour)
+	passwordChecker := security.NewPasswordStrengthChecker(store.SettingsService)
 
-	h := NewHandler(requestBouncer, rateLimiter, apiKeyService, nil)
+	h := NewHandler(requestBouncer, rateLimiter, apiKeyService, nil, passwordChecker)
 	h.DataStore = store
 
 	// generate standard and admin user tokens

@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"os"
 	"strings"
 
-	"github.com/pkg/errors"
 	portainer "github.com/portainer/portainer/api"
+
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 // KubeClusterAccessService represents a service that is responsible for centralizing kube cluster access data
@@ -44,7 +45,7 @@ var (
 func NewKubeClusterAccessService(baseURL, httpsBindAddr, tlsCertPath string) KubeClusterAccessService {
 	certificateAuthorityData, err := getCertificateAuthorityData(tlsCertPath)
 	if err != nil {
-		log.Printf("[DEBUG] [internal,kubeconfig] [message: %s, generated KubeConfig will be insecure]", err.Error())
+		log.Debug().Err(err).Msg("generated KubeConfig will be insecure")
 	}
 
 	return &kubeClusterAccessService{
@@ -62,7 +63,7 @@ func getCertificateAuthorityData(tlsCertPath string) (string, error) {
 		return "", errTLSCertNotProvided
 	}
 
-	data, err := ioutil.ReadFile(tlsCertPath)
+	data, err := os.ReadFile(tlsCertPath)
 	if err != nil {
 		return "", errors.Wrap(errTLSCertFileMissing, err.Error())
 	}
@@ -94,11 +95,24 @@ func (service *kubeClusterAccessService) IsSecure() bool {
 // - pass down params to binaries
 func (service *kubeClusterAccessService) GetData(hostURL string, endpointID portainer.EndpointID) kubernetesClusterAccessData {
 	baseURL := service.baseURL
+
+	// When the api call is internal, the baseURL should not be used.
+	if hostURL == "localhost" {
+		hostURL = hostURL + service.httpsBindAddr
+		baseURL = "/"
+	}
+
 	if baseURL != "/" {
 		baseURL = fmt.Sprintf("/%s/", strings.Trim(baseURL, "/"))
 	}
 
-	clusterURL := hostURL + service.httpsBindAddr + baseURL
+	log.Debug().
+		Str("host_URL", hostURL).
+		Str("HTTPS_bind_address", service.httpsBindAddr).
+		Str("base_URL", baseURL).
+		Msg("kubeconfig")
+
+	clusterURL := hostURL + baseURL
 
 	clusterServerURL := fmt.Sprintf("https://%sapi/endpoints/%d/kubernetes", clusterURL, endpointID)
 

@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useRouter } from '@uirouter/react';
 import _ from 'lodash';
 
-import { Button } from '@/portainer/components/Button';
-import { PageHeader } from '@/portainer/components/PageHeader';
-import { Widget, WidgetBody, WidgetTitle } from '@/portainer/components/widget';
 import { useAnalytics } from '@/angulartics.matomo/analytics-services';
+
+import { Button } from '@@/buttons';
+import { PageHeader } from '@@/PageHeader';
+import { Widget, WidgetBody, WidgetTitle } from '@@/Widget';
+
+import { useCreateEdgeDeviceParam } from '../hooks/useCreateEdgeDeviceParam';
 
 import {
   EnvironmentSelector,
@@ -14,6 +17,8 @@ import {
 import { environmentTypes } from './environment-types';
 
 export function EnvironmentTypeSelectView() {
+  const createEdgeDevice = useCreateEdgeDeviceParam();
+
   const [types, setTypes] = useState<EnvironmentSelectorValue[]>([]);
   const { trackEvent } = useAnalytics();
   const router = useRouter();
@@ -28,9 +33,13 @@ export function EnvironmentTypeSelectView() {
       <div className="row">
         <div className="col-sm-12">
           <Widget>
-            <WidgetTitle icon="fa-magic" title="Environment Wizard" />
+            <WidgetTitle icon="svg-magic" title="Environment Wizard" />
             <WidgetBody>
-              <EnvironmentSelector value={types} onChange={setTypes} />
+              <EnvironmentSelector
+                value={types}
+                onChange={setTypes}
+                createEdgeDevice={createEdgeDevice}
+              />
               <Button
                 disabled={types.length === 0}
                 onClick={() => startWizard()}
@@ -62,6 +71,7 @@ export function EnvironmentTypeSelectView() {
 
     router.stateService.go('portainer.wizard.endpoints.create', {
       envType: types,
+      ...(createEdgeDevice ? { edgeDevice: createEdgeDevice } : {}),
     });
   }
 }

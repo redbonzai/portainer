@@ -13,7 +13,10 @@ angular.module('portainer.docker').controller('CreateVolumeController', [
   'Notifications',
   'FormValidator',
   'HttpRequestHelper',
-  function ($q, $scope, $state, VolumeService, PluginService, ResourceControlService, Authentication, Notifications, FormValidator, HttpRequestHelper) {
+  'endpoint',
+  function ($q, $scope, $state, VolumeService, PluginService, ResourceControlService, Authentication, Notifications, FormValidator, HttpRequestHelper, endpoint) {
+    $scope.endpoint = endpoint;
+
     $scope.formValues = {
       Driver: 'local',
       DriverOptions: [],
@@ -37,6 +40,24 @@ angular.module('portainer.docker').controller('CreateVolumeController', [
     $scope.removeDriverOption = function (index) {
       $scope.formValues.DriverOptions.splice(index, 1);
     };
+
+    $scope.onUseNFSChange = onUseNFSChange;
+
+    function onUseNFSChange(checked) {
+      return $scope.$evalAsync(() => {
+        $scope.formValues.NFSData.useNFS = checked;
+        $scope.formValues.CIFSData.useCIFS = false;
+      });
+    }
+
+    $scope.onUseCIFSChange = onUseCIFSChange;
+
+    function onUseCIFSChange(checked) {
+      return $scope.$evalAsync(() => {
+        $scope.formValues.CIFSData.useCIFS = checked;
+        $scope.formValues.NFSData.useNFS = false;
+      });
+    }
 
     function validateForm(accessControlData, isAdmin) {
       $scope.state.formValidationError = '';
@@ -115,7 +136,7 @@ angular.module('portainer.docker').controller('CreateVolumeController', [
           return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
         })
         .then(function success() {
-          Notifications.success('Volume successfully created');
+          Notifications.success('Success', 'Volume successfully created');
           $state.go('docker.volumes', {}, { reload: true });
         })
         .catch(function error(err) {

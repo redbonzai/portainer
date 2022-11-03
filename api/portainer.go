@@ -5,6 +5,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/volume"
+	"github.com/portainer/portainer/api/database/models"
 	gittypes "github.com/portainer/portainer/api/git/types"
 	v1 "k8s.io/api/core/v1"
 )
@@ -126,6 +129,16 @@ type (
 		MaxBatchSize              *int
 		MaxBatchDelay             *time.Duration
 		SecretKeyName             *string
+		LogLevel                  *string
+		LogMode                   *string
+	}
+
+	// CustomTemplateVariableDefinition
+	CustomTemplateVariableDefinition struct {
+		Name         string `json:"name" example:"MY_VAR"`
+		Label        string `json:"label" example:"My Variable"`
+		DefaultValue string `json:"defaultValue" example:"default value"`
+		Description  string `json:"description" example:"Description"`
 	}
 
 	// CustomTemplate represents a custom template
@@ -152,6 +165,7 @@ type (
 		// Type of created stack (1 - swarm, 2 - compose)
 		Type            StackType        `json:"Type" example:"1"`
 		ResourceControl *ResourceControl `json:"ResourceControl"`
+		Variables       []CustomTemplateVariableDefinition
 	}
 
 	// CustomTemplateID represents a custom template identifier
@@ -188,16 +202,19 @@ type (
 		StackCount              int               `json:"StackCount"`
 		SnapshotRaw             DockerSnapshotRaw `json:"DockerSnapshotRaw"`
 		NodeCount               int               `json:"NodeCount"`
+		GpuUseAll               bool              `json:"GpuUseAll"`
+		GpuUseList              []string          `json:"GpuUseList"`
 	}
 
 	// DockerSnapshotRaw represents all the information related to a snapshot as returned by the Docker API
+
 	DockerSnapshotRaw struct {
-		Containers interface{} `json:"Containers"`
-		Volumes    interface{} `json:"Volumes"`
-		Networks   interface{} `json:"Networks"`
-		Images     interface{} `json:"Images"`
-		Info       interface{} `json:"Info"`
-		Version    interface{} `json:"Version"`
+		Containers []types.Container       `json:"Containers" swaggerignore:"true"`
+		Volumes    volume.VolumeListOKBody `json:"Volumes" swaggerignore:"true"`
+		Networks   []types.NetworkResource `json:"Networks" swaggerignore:"true"`
+		Images     []types.ImageSummary    `json:"Images" swaggerignore:"true"`
+		Info       types.Info              `json:"Info" swaggerignore:"true"`
+		Version    types.Version           `json:"Version" swaggerignore:"true"`
 	}
 
 	// EdgeGroup represents an Edge group
@@ -240,7 +257,8 @@ type (
 	EdgeJobLogsStatus int
 
 	// EdgeSchedule represents a scheduled job that can run on Edge environments(endpoints).
-	// Deprecated in favor of EdgeJob
+	//
+	// Deprecated: in favor of EdgeJob
 	EdgeSchedule struct {
 		// EdgeSchedule Identifier
 		ID             ScheduleID   `json:"Id" example:"1"`
@@ -298,6 +316,7 @@ type (
 		GroupID EndpointGroupID `json:"GroupId" example:"1"`
 		// URL or IP address where exposed containers will be reachable
 		PublicURL        string           `json:"PublicURL" example:"docker.mydomain.tld:2375"`
+		Gpus             []Pair           `json:"Gpus"`
 		TLSConfig        TLSConfiguration `json:"TLSConfig"`
 		AzureCredentials AzureCredentials `json:"AzureCredentials,omitempty" example:""`
 		// List of tag identifiers to which this environment(endpoint) is associated
@@ -332,6 +351,24 @@ type (
 		IsEdgeDevice bool
 		// Whether the device has been trusted or not by the user
 		UserTrusted bool
+
+		// Whether we need to run any "post init migrations".
+		PostInitMigrations EndpointPostInitMigrations `json:"PostInitMigrations"`
+
+		Edge struct {
+			// Whether the device has been started in edge async mode
+			AsyncMode bool
+			// The ping interval for edge agent - used in edge async mode [seconds]
+			PingInterval int `json:"PingInterval" example:"60"`
+			// The snapshot interval for edge agent - used in edge async mode [seconds]
+			SnapshotInterval int `json:"SnapshotInterval" example:"60"`
+			// The command list interval for edge agent - used in edge async mode [seconds]
+			CommandInterval int `json:"CommandInterval" example:"60"`
+		}
+
+		Agent struct {
+			Version string `example:"1.0.0"`
+		}
 
 		// Deprecated fields
 		// Deprecated in DBVersion == 4
@@ -419,6 +456,11 @@ type (
 		EdgeStacks map[EdgeStackID]bool
 	}
 
+	// EndpointPostInitMigrations
+	EndpointPostInitMigrations struct {
+		MigrateIngresses bool `json:"MigrateIngresses"`
+	}
+
 	// Extension represents a deprecated Portainer extension
 	Extension struct {
 		// Extension Identifier
@@ -479,6 +521,11 @@ type (
 	// JobType represents a job type
 	JobType int
 
+	K8sNamespaceInfo struct {
+		IsSystem  bool `json:"IsSystem"`
+		IsDefault bool `json:"IsDefault"`
+	}
+
 	K8sNodeLimits struct {
 		CPU    int64 `json:"CPU"`
 		Memory int64 `json:"Memory"`
@@ -508,11 +555,15 @@ type (
 
 	// KubernetesConfiguration represents the configuration of a Kubernetes environment(endpoint)
 	KubernetesConfiguration struct {
-		UseLoadBalancer          bool                           `json:"UseLoadBalancer"`
-		UseServerMetrics         bool                           `json:"UseServerMetrics"`
-		StorageClasses           []KubernetesStorageClassConfig `json:"StorageClasses"`
-		IngressClasses           []KubernetesIngressClassConfig `json:"IngressClasses"`
-		RestrictDefaultNamespace bool                           `json:"RestrictDefaultNamespace"`
+		UseLoadBalancer                 bool                           `json:"UseLoadBalancer"`
+		UseServerMetrics                bool                           `json:"UseServerMetrics"`
+		EnableResourceOverCommit        bool                           `json:"EnableResourceOverCommit"`
+		ResourceOverCommitPercentage    int                            `json:"ResourceOverCommitPercentage"`
+		StorageClasses                  []KubernetesStorageClassConfig `json:"StorageClasses"`
+		IngressClasses                  []KubernetesIngressClassConfig `json:"IngressClasses"`
+		RestrictDefaultNamespace        bool                           `json:"RestrictDefaultNamespace"`
+		IngressAvailabilityPerNamespace bool                           `json:"IngressAvailabilityPerNamespace"`
+		AllowNoneIngressClass           bool                           `json:"AllowNoneIngressClass"`
 	}
 
 	// KubernetesStorageClassConfig represents a Kubernetes Storage Class configuration
@@ -525,8 +576,10 @@ type (
 
 	// KubernetesIngressClassConfig represents a Kubernetes Ingress Class configuration
 	KubernetesIngressClassConfig struct {
-		Name string `json:"Name"`
-		Type string `json:"Type"`
+		Name              string   `json:"Name"`
+		Type              string   `json:"Type"`
+		GloballyBlocked   bool     `json:"Blocked"`
+		BlockedNamespaces []string `json:"BlockedNamespaces"`
 	}
 
 	// KubernetesShellPod represents a Kubectl Shell details to facilitate pod exec functionality
@@ -535,6 +588,11 @@ type (
 		PodName          string
 		ContainerName    string
 		ShellExecCommand string
+	}
+
+	// InternalAuthSettings represents settings used for the default 'internal' authentication
+	InternalAuthSettings struct {
+		RequiredPasswordLength int
 	}
 
 	// LDAPGroupSearchSettings represents settings used to search for groups in a LDAP server
@@ -787,6 +845,7 @@ type (
 		BlackListedLabels []Pair `json:"BlackListedLabels"`
 		// Active authentication method for the Portainer instance. Valid values are: 1 for internal, 2 for LDAP, or 3 for oauth
 		AuthenticationMethod AuthenticationMethod `json:"AuthenticationMethod" example:"1"`
+		InternalAuthSettings InternalAuthSettings `json:"InternalAuthSettings" example:""`
 		LDAPSettings         LDAPSettings         `json:"LDAPSettings" example:""`
 		OAuthSettings        OAuthSettings        `json:"OAuthSettings" example:""`
 		OpenAMTConfiguration OpenAMTConfiguration `json:"openAMTConfiguration" example:""`
@@ -818,6 +877,17 @@ type (
 		AgentSecret string `json:"AgentSecret"`
 		// EdgePortainerURL is the URL that is exposed to edge agents
 		EdgePortainerURL string `json:"EdgePortainerUrl"`
+
+		Edge struct {
+			// The command list interval for edge agent - used in edge async mode (in seconds)
+			CommandInterval int `json:"CommandInterval" example:"5"`
+			// The ping interval for edge agent - used in edge async mode (in seconds)
+			PingInterval int `json:"PingInterval" example:"5"`
+			// The snapshot interval for edge agent - used in edge async mode (in seconds)
+			SnapshotInterval int `json:"SnapshotInterval" example:"5"`
+			// EdgeAsyncMode enables edge async mode by default
+			AsyncMode bool
+		}
 
 		// Deprecated fields
 		DisplayDonationHeader       bool
@@ -882,6 +952,8 @@ type (
 		AdditionalFiles []string `json:"AdditionalFiles"`
 		// The auto update settings of a git stack
 		AutoUpdate *StackAutoUpdate `json:"AutoUpdate"`
+		// The stack deployment option
+		Option *StackOption `json:"Option"`
 		// The git config of this stack
 		GitConfig *gittypes.RepoConfig
 		// Whether the stack is from a app template
@@ -900,6 +972,12 @@ type (
 		Webhook string `example:"05de31a2-79fa-4644-9c12-faa67e5c49f0"`
 		// Autoupdate job id
 		JobID string `example:"15"`
+	}
+
+	// StackOption represents the options for stack deployment
+	StackOption struct {
+		// Prune services that are no longer referenced
+		Prune bool `example:"false"`
 	}
 
 	// StackID represents a stack identifier (it must be composed of Name + "_" + SwarmID to create a unique identifier)
@@ -1176,6 +1254,12 @@ type (
 	// WebhookType represents the type of resource a webhook is related to
 	WebhookType int
 
+	Snapshot struct {
+		EndpointID EndpointID          `json:"EndpointId"`
+		Docker     *DockerSnapshot     `json:"Docker"`
+		Kubernetes *KubernetesSnapshot `json:"Kubernetes"`
+	}
+
 	// CLIService represents a service for managing CLI
 	CLIService interface {
 		ParseFlags(version string) (*CLIFlags, error)
@@ -1188,6 +1272,7 @@ type (
 		NormalizeStackName(name string) string
 		Up(ctx context.Context, stack *Stack, endpoint *Endpoint, forceRereate bool) error
 		Down(ctx context.Context, stack *Stack, endpoint *Endpoint) error
+		Pull(ctx context.Context, stack *Stack, endpoint *Endpoint) error
 	}
 
 	// CryptoService represents a service for encrypting/hashing data
@@ -1223,6 +1308,9 @@ type (
 		DeleteTLSFiles(folder string) error
 		GetStackProjectPath(stackIdentifier string) string
 		StoreStackFileFromBytes(stackIdentifier, fileName string, data []byte) (string, error)
+		UpdateStoreStackFileFromBytes(stackIdentifier, fileName string, data []byte) (string, error)
+		RemoveStackFileBackup(stackIdentifier, fileName string) error
+		RollbackStackFile(stackIdentifier, fileName string) error
 		GetEdgeStackProjectPath(edgeStackIdentifier string) string
 		StoreEdgeStackFileFromBytes(edgeStackIdentifier, fileName string, data []byte) (string, error)
 		StoreRegistryManagementFileFromBytes(folder, fileName string, data []byte) (string, error)
@@ -1252,6 +1340,8 @@ type (
 	GitService interface {
 		CloneRepository(destination string, repositoryURL, referenceName, username, password string) error
 		LatestCommitID(repositoryURL, referenceName, username, password string) (string, error)
+		ListRefs(repositoryURL, username, password string, hardRefresh bool) ([]string, error)
+		ListFiles(repositoryURL, referenceName, username, password string, hardRefresh bool, includeExts []string) ([]string, error)
 	}
 
 	// OpenAMTService represents a service for managing OpenAMT
@@ -1269,8 +1359,24 @@ type (
 		GetServiceAccountBearerToken(userID int) (string, error)
 		CreateUserShellPod(ctx context.Context, serviceAccountName, shellPodImage string) (*KubernetesShellPod, error)
 		StartExecProcess(token string, useAdminToken bool, namespace, podName, containerName string, command []string, stdin io.Reader, stdout io.Writer, errChan chan error)
+
 		HasStackName(namespace string, stackName string) (bool, error)
 		NamespaceAccessPoliciesDeleteNamespace(namespace string) error
+		CreateNamespace(info models.K8sNamespaceDetails) error
+		UpdateNamespace(info models.K8sNamespaceDetails) error
+		GetNamespaces() (map[string]K8sNamespaceInfo, error)
+		GetNamespace(string) (K8sNamespaceInfo, error)
+		DeleteNamespace(namespace string) error
+		GetConfigMapsAndSecrets(namespace string) ([]models.K8sConfigMapOrSecret, error)
+		GetIngressControllers() (models.K8sIngressControllers, error)
+		CreateIngress(namespace string, info models.K8sIngressInfo) error
+		UpdateIngress(namespace string, info models.K8sIngressInfo) error
+		GetIngresses(namespace string) ([]models.K8sIngressInfo, error)
+		DeleteIngresses(reqs models.K8sIngressDeleteRequests) error
+		CreateService(namespace string, service models.K8sServiceInfo) error
+		UpdateService(namespace string, service models.K8sServiceInfo) error
+		GetServices(namespace string) ([]models.K8sServiceInfo, error)
+		DeleteServices(reqs models.K8sServiceDeleteRequests) error
 		GetNodesLimits() (K8sNodesLimits, error)
 		GetNamespaceAccessPolicies() (map[string]K8sNamespaceAccessPolicy, error)
 		UpdateNamespaceAccessPolicies(accessPolicies map[string]K8sNamespaceAccessPolicy) error
@@ -1331,13 +1437,14 @@ type (
 		Start()
 		SetSnapshotInterval(snapshotInterval string) error
 		SnapshotEndpoint(endpoint *Endpoint) error
+		FillSnapshotData(endpoint *Endpoint) error
 	}
 
 	// SwarmStackManager represents a service to manage Swarm stacks
 	SwarmStackManager interface {
 		Login(registries []Registry, endpoint *Endpoint) error
 		Logout(endpoint *Endpoint) error
-		Deploy(stack *Stack, prune bool, endpoint *Endpoint) error
+		Deploy(stack *Stack, prune bool, pullImage bool, endpoint *Endpoint) error
 		Remove(stack *Stack, endpoint *Endpoint) error
 		NormalizeStackName(name string) string
 	}
@@ -1345,9 +1452,9 @@ type (
 
 const (
 	// APIVersion is the version number of the Portainer API
-	APIVersion = "2.13.0"
+	APIVersion = "2.17.0"
 	// DBVersion is the version number of the Portainer database
-	DBVersion = 35
+	DBVersion = 80
 	// ComposeSyntaxMaxVersion is a maximum supported version of the docker compose syntax
 	ComposeSyntaxMaxVersion = "3.9"
 	// AssetsServerURL represents the URL of the Portainer asset server
@@ -1391,8 +1498,12 @@ const (
 	WebSocketKeepAlive = 1 * time.Hour
 )
 
+const FeatureFlagEdgeRemoteUpdate Feature = "edgeRemoteUpdate"
+
 // List of supported features
-var SupportedFeatureFlags = []Feature{}
+var SupportedFeatureFlags = []Feature{
+	FeatureFlagEdgeRemoteUpdate,
+}
 
 const (
 	_ AuthenticationMethod = iota

@@ -3,14 +3,19 @@ import { useState } from 'react';
 import _ from 'lodash';
 import clsx from 'clsx';
 
-import { Stepper } from '@/react/components/Stepper';
-import { Widget, WidgetBody, WidgetTitle } from '@/portainer/components/widget';
 import { notifyError } from '@/portainer/services/notifications';
-import { PageHeader } from '@/portainer/components/PageHeader';
-import { Button } from '@/portainer/components/Button';
-import { Environment, EnvironmentId } from '@/portainer/environments/types';
+import {
+  Environment,
+  EnvironmentId,
+} from '@/react/portainer/environments/types';
 import { useAnalytics } from '@/angulartics.matomo/analytics-services';
-import { FormSection } from '@/portainer/components/form-components/FormSection';
+
+import { Stepper } from '@@/Stepper';
+import { Widget, WidgetBody, WidgetTitle } from '@@/Widget';
+import { PageHeader } from '@@/PageHeader';
+import { Button } from '@@/buttons';
+import { FormSection } from '@@/form-components/FormSection';
+import { Icon } from '@@/Icon';
 
 import { environmentTypes } from '../EnvironmentTypeSelectView/environment-types';
 import { EnvironmentSelectorValue } from '../EnvironmentTypeSelectView/EnvironmentSelector';
@@ -55,6 +60,8 @@ export function EnvironmentCreationView() {
     isLastStep,
   } = useStepper(steps, handleFinish);
 
+  const isDockerStandalone = currentStep.id === 'dockerStandalone';
+
   return (
     <>
       <PageHeader
@@ -64,7 +71,7 @@ export function EnvironmentCreationView() {
 
       <div className={styles.wizardWrapper}>
         <Widget>
-          <WidgetTitle icon="fa-magic" title="Environment Wizard" />
+          <WidgetTitle icon="svg-magic" title="Environment Wizard" />
           <WidgetBody>
             <Stepper steps={steps} currentStep={currentStepIndex + 1} />
 
@@ -73,7 +80,10 @@ export function EnvironmentCreationView() {
                 title={`Connect to your ${currentStep.title}
                     environment`}
               >
-                <Component onCreate={handleCreateEnvironment} />
+                <Component
+                  onCreate={handleCreateEnvironment}
+                  isDockerStandalone={isDockerStandalone}
+                />
 
                 <div
                   className={clsx(
@@ -82,11 +92,11 @@ export function EnvironmentCreationView() {
                   )}
                 >
                   <Button disabled={isFirstStep} onClick={onPreviousClick}>
-                    <i className="fas fa-arrow-left space-right" /> Previous
+                    <Icon icon="arrow-left" feather /> Previous
                   </Button>
                   <Button onClick={onNextClick}>
-                    {isLastStep ? 'Finish' : 'Next'}
-                    <i className="fas fa-arrow-right space-left" />
+                    {isLastStep ? 'Close' : 'Next'}
+                    <Icon icon="arrow-right" feather />
                   </Button>
                 </div>
               </FormSection>
@@ -118,6 +128,11 @@ export function EnvironmentCreationView() {
         ])
       ),
     });
+    if (localStorage.getItem('wizardReferrer') === 'environments') {
+      localStorage.removeItem('wizardReferrer');
+      router.stateService.go('portainer.endpoints');
+      return;
+    }
     router.stateService.go('portainer.home');
   }
 }
@@ -171,7 +186,8 @@ function useStepper(
 
   function getComponent(id: EnvironmentSelectorValue) {
     switch (id) {
-      case 'docker':
+      case 'dockerStandalone':
+      case 'dockerSwarm':
         return WizardDocker;
       case 'aci':
         return WizardAzure;
@@ -193,6 +209,7 @@ function useAnalyticsState() {
     aciApi: 0,
     localEndpoint: 0,
     nomadEdgeAgent: 0,
+    dockerEdgeAgent: 0,
   });
 
   return { analytics, setAnalytics };

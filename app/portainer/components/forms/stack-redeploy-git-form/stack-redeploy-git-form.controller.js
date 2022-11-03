@@ -28,6 +28,10 @@ class StackRedeployGitFormController {
       RepositoryUsername: '',
       RepositoryPassword: '',
       Env: [],
+      PullImage: false,
+      Option: {
+        Prune: false,
+      },
       // auto update
       AutoUpdate: {
         RepositoryAutomaticUpdates: false,
@@ -41,6 +45,7 @@ class StackRedeployGitFormController {
     this.onChangeRef = this.onChangeRef.bind(this);
     this.onChangeAutoUpdate = this.onChangeAutoUpdate.bind(this);
     this.onChangeEnvVar = this.onChangeEnvVar.bind(this);
+    this.onChangeOption = this.onChangeOption.bind(this);
   }
 
   buildAnalyticsProperties() {
@@ -88,28 +93,45 @@ class StackRedeployGitFormController {
     this.onChange({ Env: value });
   }
 
-  async submit() {
-    const tplCrop =
-      '<div>Any changes to this stack or application made locally in Portainer will be overridden, which may cause service interruption.</div>' +
-      '<div"><div style="position: absolute; right: 110px; top: 68px; z-index: 999">' +
-      '<be-feature-indicator feature="stackPullImageFeature"></be-feature-indicator></div></div>';
-    const template = angular.element(tplCrop);
-    const html = this.$compile(template)(this.$scope);
-    this.ModalService.confirmStackUpdate(html, true, true, 'btn-warning', async (result) => {
-      if (!result) {
-        return;
-      }
-      try {
-        this.state.redeployInProgress = true;
-        await this.StackService.updateGit(this.stack.Id, this.stack.EndpointId, this.FormHelper.removeInvalidEnvVars(this.formValues.Env), false, this.formValues);
-        this.Notifications.success('Pulled and redeployed stack successfully');
-        this.$state.reload();
-      } catch (err) {
-        this.Notifications.error('Failure', err, 'Failed redeploying stack');
-      } finally {
-        this.state.redeployInProgress = false;
-      }
+  onChangeOption(values) {
+    this.onChange({
+      Option: {
+        ...this.formValues.Option,
+        ...values,
+      },
     });
+  }
+
+  async submit() {
+    const isSwarmStack = this.stack.Type === 1;
+    const that = this;
+    this.ModalService.confirmStackUpdate(
+      'Any changes to this stack or application made locally in Portainer will be overridden, which may cause service interruption. Do you wish to continue?',
+      isSwarmStack,
+      'btn-warning',
+      async function (result) {
+        if (!result) {
+          return;
+        }
+        try {
+          that.state.redeployInProgress = true;
+          await that.StackService.updateGit(
+            that.stack.Id,
+            that.stack.EndpointId,
+            that.FormHelper.removeInvalidEnvVars(that.formValues.Env),
+            that.formValues.Option.Prune,
+            that.formValues,
+            !!result[0]
+          );
+          that.Notifications.success('Success', 'Pulled and redeployed stack successfully');
+          that.$state.reload();
+        } catch (err) {
+          that.Notifications.error('Failure', err, 'Failed redeploying stack');
+        } finally {
+          that.state.redeployInProgress = false;
+        }
+      }
+    );
   }
 
   async saveGitSettings() {
@@ -124,7 +146,7 @@ class StackRedeployGitFormController {
         );
         this.savedFormValues = angular.copy(this.formValues);
         this.state.hasUnsavedChanges = false;
-        this.Notifications.success('Save stack settings successfully');
+        this.Notifications.success('Success', 'Save stack settings successfully');
 
         this.stack = stack;
       } catch (err) {
@@ -148,6 +170,9 @@ class StackRedeployGitFormController {
   $onInit() {
     this.formValues.RefName = this.model.ReferenceName;
     this.formValues.Env = this.stack.Env;
+    if (this.stack.Option) {
+      this.formValues.Option = this.stack.Option;
+    }
 
     // Init auto update
     if (this.stack.AutoUpdate && (this.stack.AutoUpdate.Interval || this.stack.AutoUpdate.Webhook)) {

@@ -3,21 +3,21 @@ package kubernetes
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net/http"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
 
+	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/kubernetes/cli"
 
-	portainer "github.com/portainer/portainer/api"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 )
 
 type baseTransport struct {
@@ -132,7 +132,10 @@ func (transport *baseTransport) getRoundTripToken(request *http.Request, tokenMa
 	} else {
 		token, err = tokenManager.GetUserServiceAccountToken(int(tokenData.ID), transport.endpoint.ID)
 		if err != nil {
-			log.Printf("Failed retrieving service account token: %v", err)
+			log.Debug().
+				Err(err).
+				Msg("failed retrieving service account token")
+
 			return "", err
 		}
 	}
@@ -186,7 +189,7 @@ func decorateAgentDockerHubRequest(r *http.Request, dataStore dataservices.DataS
 	}
 
 	r.Method = http.MethodPost
-	r.Body = ioutil.NopCloser(bytes.NewReader(newBody))
+	r.Body = io.NopCloser(bytes.NewReader(newBody))
 	r.ContentLength = int64(len(newBody))
 
 	return nil

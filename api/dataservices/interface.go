@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/portainer/portainer/api/dataservices/errors"
+	"github.com/portainer/portainer/api/edgetypes"
 
 	portainer "github.com/portainer/portainer/api"
 )
@@ -23,11 +24,11 @@ type (
 		BackupTo(w io.Writer) error
 		Export(filename string) (err error)
 		IsErrObjectNotFound(err error) bool
-
 		CustomTemplate() CustomTemplateService
 		EdgeGroup() EdgeGroupService
 		EdgeJob() EdgeJobService
 		EdgeStack() EdgeStackService
+		EdgeUpdateSchedule() EdgeUpdateScheduleService
 		Endpoint() EndpointService
 		EndpointGroup() EndpointGroupService
 		EndpointRelation() EndpointRelationService
@@ -38,6 +39,7 @@ type (
 		Role() RoleService
 		APIKeyRepository() APIKeyRepository
 		Settings() SettingsService
+		Snapshot() SnapshotService
 		SSLSettings() SSLSettingsService
 		Stack() StackService
 		Tag() TagService
@@ -78,6 +80,17 @@ type (
 		UpdateEdgeJob(ID portainer.EdgeJobID, edgeJob *portainer.EdgeJob) error
 		DeleteEdgeJob(ID portainer.EdgeJobID) error
 		GetNextIdentifier() int
+		BucketName() string
+	}
+
+	EdgeUpdateScheduleService interface {
+		ActiveSchedule(environmentID portainer.EndpointID) *edgetypes.EndpointUpdateScheduleRelation
+		ActiveSchedules(environmentIDs []portainer.EndpointID) []edgetypes.EndpointUpdateScheduleRelation
+		List() ([]edgetypes.UpdateSchedule, error)
+		Item(ID edgetypes.UpdateScheduleID) (*edgetypes.UpdateSchedule, error)
+		Create(edgeUpdateSchedule *edgetypes.UpdateSchedule) error
+		Update(ID edgetypes.UpdateScheduleID, edgeUpdateSchedule *edgetypes.UpdateSchedule) error
+		Delete(ID edgetypes.UpdateScheduleID) error
 		BucketName() string
 	}
 
@@ -201,6 +214,15 @@ type (
 		BucketName() string
 	}
 
+	SnapshotService interface {
+		Snapshot(endpointID portainer.EndpointID) (*portainer.Snapshot, error)
+		Snapshots() ([]portainer.Snapshot, error)
+		UpdateSnapshot(snapshot *portainer.Snapshot) error
+		DeleteSnapshot(endpointID portainer.EndpointID) error
+		Create(snapshot *portainer.Snapshot) error
+		BucketName() string
+	}
+
 	// SSLSettingsService represents a service for managing application settings
 	SSLSettingsService interface {
 		Settings() (*portainer.SSLSettings, error)
@@ -229,6 +251,7 @@ type (
 		Tag(ID portainer.TagID) (*portainer.Tag, error)
 		Create(tag *portainer.Tag) error
 		UpdateTag(ID portainer.TagID, tag *portainer.Tag) error
+		UpdateTagFunc(ID portainer.TagID, updateFunc func(tag *portainer.Tag)) error
 		DeleteTag(ID portainer.TagID) error
 		BucketName() string
 	}
@@ -256,6 +279,7 @@ type (
 		DeleteTeamMembershipByUserID(userID portainer.UserID) error
 		DeleteTeamMembershipByTeamID(teamID portainer.TeamID) error
 		BucketName() string
+		DeleteTeamMembershipByTeamIDAndUserID(teamID portainer.TeamID, userID portainer.UserID) error
 	}
 
 	// TunnelServerService represents a service for managing data associated to the tunnel server

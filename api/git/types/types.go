@@ -1,5 +1,12 @@
 package gittypes
 
+import "errors"
+
+var (
+	ErrIncorrectRepositoryURL = errors.New("Git repository could not be found, please ensure that the URL is correct.")
+	ErrAuthenticationFailure  = errors.New("Authentication failed, please ensure that the git credentials are correct.")
+)
+
 // RepoConfig represents a configuration for a repo
 type RepoConfig struct {
 	// The repo url
@@ -17,4 +24,8 @@ type RepoConfig struct {
 type GitAuthentication struct {
 	Username string
 	Password string
+	// Git credentials identifier when the value is not 0
+	// When the value is 0, Username and Password are set without using saved credential
+	// This is introduced since 2.15.0
+	GitCredentialID int `example:"0"`
 }

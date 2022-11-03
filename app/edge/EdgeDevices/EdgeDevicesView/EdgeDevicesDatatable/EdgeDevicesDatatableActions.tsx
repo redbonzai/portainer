@@ -1,13 +1,17 @@
 import { useRouter } from '@uirouter/react';
 
-import type { Environment } from '@/portainer/environments/types';
-import { Button } from '@/portainer/components/Button';
-import { confirmAsync } from '@/portainer/services/modal.service/confirm';
+import type { Environment } from '@/react/portainer/environments/types';
+import {
+  confirmAsync,
+  confirmDestructiveAsync,
+} from '@/portainer/services/modal.service/confirm';
 import { promptAsync } from '@/portainer/services/modal.service/prompt';
 import * as notifications from '@/portainer/services/notifications';
 import { activateDevice } from '@/portainer/hostmanagement/open-amt/open-amt.service';
-import { deleteEndpoint } from '@/portainer/environments/environment.service';
-import { Link } from '@/portainer/components/Link';
+import { deleteEndpoint } from '@/react/portainer/environments/environment.service';
+
+import { Button } from '@@/buttons';
+import { Link } from '@@/Link';
 
 interface Props {
   selectedItems: Environment[];
@@ -15,6 +19,11 @@ interface Props {
   isOpenAMTEnabled: boolean;
   setLoadingMessage(message: string): void;
   showWaitingRoomLink: boolean;
+}
+
+enum DeployType {
+  FDO = 'FDO',
+  MANUAL = 'MANUAL',
 }
 
 export function EdgeDevicesDatatableActions({
@@ -32,13 +41,13 @@ export function EdgeDevicesDatatableActions({
         disabled={selectedItems.length < 1}
         color="danger"
         onClick={() => onDeleteEdgeDeviceClick()}
+        icon="trash-2"
+        featherIcon
       >
-        <i className="fa fa-trash-alt space-right" aria-hidden="true" />
         Remove
       </Button>
 
-      <Button onClick={() => onAddNewDeviceClick()}>
-        <i className="fa fa-plus-circle space-right" aria-hidden="true" />
+      <Button onClick={() => onAddNewDeviceClick()} icon="plus" featherIcon>
         Add Device
       </Button>
 
@@ -46,8 +55,9 @@ export function EdgeDevicesDatatableActions({
         <Button
           disabled={selectedItems.length !== 1}
           onClick={() => onAssociateOpenAMTClick(selectedItems)}
+          icon="link"
+          featherIcon
         >
-          <i className="fa fa-link space-right" aria-hidden="true" />
           Associate with OpenAMT
         </Button>
       )}
@@ -61,7 +71,7 @@ export function EdgeDevicesDatatableActions({
   );
 
   async function onDeleteEdgeDeviceClick() {
-    const confirmed = await confirmAsync({
+    const confirmed = await confirmDestructiveAsync({
       title: 'Are you sure ?',
       message:
         'This action will remove all configurations associated to your environment(s). Continue?',
@@ -100,38 +110,37 @@ export function EdgeDevicesDatatableActions({
   }
 
   async function onAddNewDeviceClick() {
-    if (!isFDOEnabled) {
-      router.stateService.go('portainer.endpoints.newEdgeDevice');
-      return;
-    }
-
-    const result = await promptAsync({
-      title: 'How would you like to add an Edge Device?',
-      inputType: 'radio',
-      inputOptions: [
-        {
-          text: 'Provision bare-metal using Intel FDO',
-          value: 'FDO',
-        },
-        {
-          text: 'Deploy agent manually',
-          value: 'MANUAL',
-        },
-      ],
-      buttons: {
-        confirm: {
-          label: 'Confirm',
-          className: 'btn-primary',
-        },
-      },
-    });
+    const result = isFDOEnabled
+      ? await promptAsync({
+          title: 'How would you like to add an Edge Device?',
+          inputType: 'radio',
+          inputOptions: [
+            {
+              text: 'Provision bare-metal using Intel FDO',
+              value: DeployType.FDO,
+            },
+            {
+              text: 'Deploy agent manually',
+              value: DeployType.MANUAL,
+            },
+          ],
+          buttons: {
+            confirm: {
+              label: 'Confirm',
+              className: 'btn-primary',
+            },
+          },
+        })
+      : DeployType.MANUAL;
 
     switch (result) {
-      case 'FDO':
+      case DeployType.FDO:
         router.stateService.go('portainer.endpoints.importDevice');
         break;
-      case 'MANUAL':
-        router.stateService.go('portainer.endpoints.newEdgeDevice');
+      case DeployType.MANUAL:
+        router.stateService.go('portainer.wizard.endpoints', {
+          edgeDevice: true,
+        });
         break;
       default:
         break;

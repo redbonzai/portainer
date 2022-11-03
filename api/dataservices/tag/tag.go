@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	portainer "github.com/portainer/portainer/api"
-	"github.com/sirupsen/logrus"
+
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -43,10 +44,12 @@ func (service *Service) Tags() ([]portainer.Tag, error) {
 		func(obj interface{}) (interface{}, error) {
 			tag, ok := obj.(*portainer.Tag)
 			if !ok {
-				logrus.WithField("obj", obj).Errorf("Failed to convert to Tag object")
+				log.Debug().Str("obj", fmt.Sprintf("%#v", obj)).Msg("failed to convert to Tag object")
 				return nil, fmt.Errorf("Failed to convert to Tag object: %s", obj)
 			}
+
 			tags = append(tags, *tag)
+
 			return &portainer.Tag{}, nil
 		})
 
@@ -77,10 +80,22 @@ func (service *Service) Create(tag *portainer.Tag) error {
 	)
 }
 
-// UpdateTag updates a tag.
+// Deprecated: Use UpdateTagFunc instead.
 func (service *Service) UpdateTag(ID portainer.TagID, tag *portainer.Tag) error {
 	identifier := service.connection.ConvertToKey(int(ID))
 	return service.connection.UpdateObject(BucketName, identifier, tag)
+}
+
+// UpdateTagFunc updates a tag inside a transaction avoiding data races.
+func (service *Service) UpdateTagFunc(ID portainer.TagID, updateFunc func(tag *portainer.Tag)) error {
+	id := service.connection.ConvertToKey(int(ID))
+	tag := &portainer.Tag{}
+
+	service.connection.UpdateObjectFunc(BucketName, id, tag, func() {
+		updateFunc(tag)
+	})
+
+	return nil
 }
 
 // DeleteTag deletes a tag.

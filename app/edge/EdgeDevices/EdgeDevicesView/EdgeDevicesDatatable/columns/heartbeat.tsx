@@ -1,6 +1,6 @@
 import { CellProps, Column } from 'react-table';
 
-import { Environment } from '@/portainer/environments/types';
+import { Environment } from '@/react/portainer/environments/types';
 import { EdgeIndicator } from '@/portainer/home/EnvironmentList/EnvironmentItem/EdgeIndicator';
 
 export const heartbeat: Column<Environment> = {
@@ -15,12 +15,5 @@ export const heartbeat: Column<Environment> = {
 export function StatusCell({
   row: { original: environment },
 }: CellProps<Environment>) {
-  return (
-    <EdgeIndicator
-      checkInInterval={environment.EdgeCheckinInterval}
-      edgeId={environment.EdgeID}
-      lastCheckInDate={environment.LastCheckInDate}
-      queryDate={environment.QueryDate}
-    />
-  );
+  return <EdgeIndicator environment={environment} />;
 }

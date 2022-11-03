@@ -1,21 +1,22 @@
 import clsx from 'clsx';
 
-import { Widget, WidgetBody, WidgetTitle } from '@/portainer/components/widget';
 import {
   environmentTypeIcon,
   endpointTypeName,
   stripProtocol,
 } from '@/portainer/filters/filters';
-import { EnvironmentId } from '@/portainer/environments/types';
+import { EnvironmentId } from '@/react/portainer/environments/types';
 import { EdgeIndicator } from '@/portainer/home/EnvironmentList/EnvironmentItem';
 import {
   isEdgeEnvironment,
   isUnassociatedEdgeEnvironment,
-} from '@/portainer/environments/utils';
+} from '@/react/portainer/environments/utils';
 import {
   ENVIRONMENTS_POLLING_INTERVAL,
   useEnvironmentList,
-} from '@/portainer/environments/queries/useEnvironmentList';
+} from '@/react/portainer/environments/queries/useEnvironmentList';
+
+import { Widget, WidgetBody, WidgetTitle } from '@@/Widget';
 
 import styles from './WizardEndpointsList.module.css';
 
@@ -43,7 +44,7 @@ export function WizardEndpointsList({ environmentIds }: Props) {
 
   return (
     <Widget>
-      <WidgetTitle icon="fa-plug" title="Connected Environments" />
+      <WidgetTitle icon="svg-plug" title="New Environments" />
       <WidgetBody>
         {environments.map((environment) => (
           <div className={styles.wizardListWrapper} key={environment.Id}>
@@ -65,12 +66,7 @@ export function WizardEndpointsList({ environmentIds }: Props) {
             </div>
             {isEdgeEnvironment(environment.Type) && (
               <div className={styles.wizardListEdgeStatus}>
-                <EdgeIndicator
-                  edgeId={environment.EdgeID}
-                  checkInInterval={environment.EdgeCheckinInterval}
-                  queryDate={environment.QueryDate}
-                  lastCheckInDate={environment.LastCheckInDate}
-                />
+                <EdgeIndicator environment={environment} />
               </div>
             )}
           </div>

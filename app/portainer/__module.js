@@ -6,10 +6,9 @@ import settingsModule from './settings';
 import featureFlagModule from './feature-flags';
 import userActivityModule from './user-activity';
 import servicesModule from './services';
-import teamsModule from './teams';
-import homeModule from './home';
-import { accessControlModule } from './access-control';
 import { reactModule } from './react';
+import { sidebarModule } from './react/views/sidebar';
+import environmentsModule from './environments';
 
 async function initAuthentication(authManager, Authentication, $rootScope, $state) {
   authManager.checkAuthOnRefresh();
@@ -20,6 +19,7 @@ async function initAuthentication(authManager, Authentication, $rootScope, $stat
   $rootScope.$on('unauthenticated', function (event, data) {
     if (!_.includes(data.config.url, '/v2/') && !_.includes(data.config.url, '/api/v4/') && isTransitionRequiresAuthentication($state.transition)) {
       $state.go('portainer.logout', { error: 'Your session has expired' });
+      window.location.reload();
     }
   });
 
@@ -28,7 +28,6 @@ async function initAuthentication(authManager, Authentication, $rootScope, $stat
 
 angular
   .module('portainer.app', [
-    homeModule,
     'portainer.oauth',
     'portainer.rbac',
     componentsModule,
@@ -37,9 +36,9 @@ angular
     userActivityModule,
     'portainer.shared.datatable',
     servicesModule,
-    teamsModule,
-    accessControlModule,
     reactModule,
+    sidebarModule,
+    environmentsModule,
   ])
   .config([
     '$stateRegistryProvider',
@@ -68,8 +67,7 @@ angular
         },
         views: {
           'sidebar@': {
-            templateUrl: './views/sidebar/sidebar.html',
-            controller: 'SidebarController',
+            component: 'sidebar',
           },
         },
       };
@@ -168,8 +166,7 @@ angular
         url: '/endpoints',
         views: {
           'content@': {
-            templateUrl: './views/endpoints/endpoints.html',
-            controller: 'EndpointsController',
+            component: 'endpointsView',
           },
         },
       };
@@ -181,48 +178,6 @@ angular
           'content@': {
             templateUrl: './views/endpoints/edit/endpoint.html',
             controller: 'EndpointController',
-          },
-        },
-      };
-
-      var k8sendpoint = {
-        name: 'portainer.k8sendpoint',
-        url: '/:id',
-      };
-
-      const endpointKubernetesConfiguration = {
-        name: 'portainer.k8sendpoint.kubernetesConfig',
-        url: '/configure',
-        views: {
-          'content@': {
-            templateUrl: '../kubernetes/views/configure/configure.html',
-            controller: 'KubernetesConfigureController',
-            controllerAs: 'ctrl',
-          },
-        },
-      };
-
-      var endpointCreation = {
-        name: 'portainer.endpoints.new',
-        url: '/new',
-        views: {
-          'content@': {
-            templateUrl: './views/endpoints/create/createendpoint.html',
-            controller: 'CreateEndpointController',
-          },
-        },
-      };
-
-      var edgeDeviceCreation = {
-        name: 'portainer.endpoints.newEdgeDevice',
-        url: '/newEdgeDevice',
-        params: {
-          isEdgeDevice: true,
-        },
-        views: {
-          'content@': {
-            templateUrl: './views/endpoints/create/createendpoint.html',
-            controller: 'CreateEndpointController',
           },
         },
       };
@@ -463,28 +418,6 @@ angular
         },
       };
 
-      var teams = {
-        name: 'portainer.teams',
-        url: '/teams',
-        views: {
-          'content@': {
-            templateUrl: './views/teams/teams.html',
-            controller: 'TeamsController',
-          },
-        },
-      };
-
-      var team = {
-        name: 'portainer.teams.team',
-        url: '/:id',
-        views: {
-          'content@': {
-            templateUrl: './views/teams/edit/team.html',
-            controller: 'TeamController',
-          },
-        },
-      };
-
       $stateRegistryProvider.register(root);
       $stateRegistryProvider.register(endpointRoot);
       $stateRegistryProvider.register(portainer);
@@ -494,15 +427,11 @@ angular
       $stateRegistryProvider.register(logout);
       $stateRegistryProvider.register(endpoints);
       $stateRegistryProvider.register(endpoint);
-      $stateRegistryProvider.register(k8sendpoint);
       $stateRegistryProvider.register(endpointAccess);
       $stateRegistryProvider.register(endpointKVM);
-      $stateRegistryProvider.register(edgeDeviceCreation);
-      $stateRegistryProvider.register(endpointCreation);
       $stateRegistryProvider.register(deviceImport);
       $stateRegistryProvider.register(addFDOProfile);
       $stateRegistryProvider.register(editFDOProfile);
-      $stateRegistryProvider.register(endpointKubernetesConfiguration);
       $stateRegistryProvider.register(groups);
       $stateRegistryProvider.register(group);
       $stateRegistryProvider.register(groupAccess);
@@ -520,8 +449,6 @@ angular
       $stateRegistryProvider.register(tags);
       $stateRegistryProvider.register(users);
       $stateRegistryProvider.register(user);
-      $stateRegistryProvider.register(teams);
-      $stateRegistryProvider.register(team);
     },
   ]);
 

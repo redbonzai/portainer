@@ -2,13 +2,12 @@ import clsx from 'clsx';
 import _ from 'lodash';
 
 import { TagId } from '@/portainer/tags/types';
-import {
-  Creatable,
-  Select,
-} from '@/portainer/components/form-components/ReactSelect';
+import { Icon } from '@/react/components/Icon';
 import { useCreateTagMutation, useTags } from '@/portainer/tags/queries';
-import { FormControl } from '@/portainer/components/form-components/FormControl';
-import { Link } from '@/portainer/components/Link';
+
+import { Creatable, Select } from '@@/form-components/ReactSelect';
+import { FormControl } from '@@/form-components/FormControl';
+import { Link } from '@@/Link';
 
 import styles from './TagSelector.module.css';
 
@@ -62,18 +61,21 @@ export function TagSelector({ value, allowCreate = false, onChange }: Props) {
       {value.length > 0 && (
         <FormControl label="Selected tags">
           {selectedTags.map((tag) => (
-            <span className="tag space-right interactive" key={tag.value}>
+            <button
+              type="button"
+              title="Remove tag"
+              className={clsx(
+                styles.removeTagBtn,
+                'space-left',
+                'tag',
+                'vertical-center'
+              )}
+              onClick={() => handleRemove(tag.value)}
+              key={tag.value}
+            >
               {tag.label}
-
-              <button
-                type="button"
-                title="Remove tag"
-                className={clsx(styles.removeTagBtn, 'space-left')}
-                onClick={() => handleRemove(tag.value)}
-              >
-                <i className="fa fa-trash-alt white-icon" aria-hidden="true" />
-              </button>
-            </span>
+              <Icon icon="trash-2" feather />
+            </button>
           ))}
         </FormControl>
       )}

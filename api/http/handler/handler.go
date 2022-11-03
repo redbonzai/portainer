@@ -7,10 +7,12 @@ import (
 	"github.com/portainer/portainer/api/http/handler/auth"
 	"github.com/portainer/portainer/api/http/handler/backup"
 	"github.com/portainer/portainer/api/http/handler/customtemplates"
+	"github.com/portainer/portainer/api/http/handler/docker"
 	"github.com/portainer/portainer/api/http/handler/edgegroups"
 	"github.com/portainer/portainer/api/http/handler/edgejobs"
 	"github.com/portainer/portainer/api/http/handler/edgestacks"
 	"github.com/portainer/portainer/api/http/handler/edgetemplates"
+	"github.com/portainer/portainer/api/http/handler/edgeupdateschedules"
 	"github.com/portainer/portainer/api/http/handler/endpointedge"
 	"github.com/portainer/portainer/api/http/handler/endpointgroups"
 	"github.com/portainer/portainer/api/http/handler/endpointproxy"
@@ -42,45 +44,47 @@ import (
 
 // Handler is a collection of all the service handlers.
 type Handler struct {
-	AuthHandler            *auth.Handler
-	BackupHandler          *backup.Handler
-	CustomTemplatesHandler *customtemplates.Handler
-	EdgeGroupsHandler      *edgegroups.Handler
-	EdgeJobsHandler        *edgejobs.Handler
-	EdgeStacksHandler      *edgestacks.Handler
-	EdgeTemplatesHandler   *edgetemplates.Handler
-	EndpointEdgeHandler    *endpointedge.Handler
-	EndpointGroupHandler   *endpointgroups.Handler
-	EndpointHandler        *endpoints.Handler
-	EndpointHelmHandler    *helm.Handler
-	EndpointProxyHandler   *endpointproxy.Handler
-	HelmTemplatesHandler   *helm.Handler
-	KubernetesHandler      *kubernetes.Handler
-	FileHandler            *file.Handler
-	LDAPHandler            *ldap.Handler
-	MOTDHandler            *motd.Handler
-	RegistryHandler        *registries.Handler
-	ResourceControlHandler *resourcecontrols.Handler
-	RoleHandler            *roles.Handler
-	SettingsHandler        *settings.Handler
-	SSLHandler             *ssl.Handler
-	OpenAMTHandler         *openamt.Handler
-	FDOHandler             *fdo.Handler
-	StackHandler           *stacks.Handler
-	StatusHandler          *status.Handler
-	StorybookHandler       *storybook.Handler
-	TagHandler             *tags.Handler
-	TeamMembershipHandler  *teammemberships.Handler
-	TeamHandler            *teams.Handler
-	TemplatesHandler       *templates.Handler
-	UploadHandler          *upload.Handler
-	UserHandler            *users.Handler
-	WebSocketHandler       *websocket.Handler
-	WebhookHandler         *webhooks.Handler
+	AuthHandler               *auth.Handler
+	BackupHandler             *backup.Handler
+	CustomTemplatesHandler    *customtemplates.Handler
+	DockerHandler             *docker.Handler
+	EdgeGroupsHandler         *edgegroups.Handler
+	EdgeJobsHandler           *edgejobs.Handler
+	EdgeUpdateScheduleHandler *edgeupdateschedules.Handler
+	EdgeStacksHandler         *edgestacks.Handler
+	EdgeTemplatesHandler      *edgetemplates.Handler
+	EndpointEdgeHandler       *endpointedge.Handler
+	EndpointGroupHandler      *endpointgroups.Handler
+	EndpointHandler           *endpoints.Handler
+	EndpointHelmHandler       *helm.Handler
+	EndpointProxyHandler      *endpointproxy.Handler
+	HelmTemplatesHandler      *helm.Handler
+	KubernetesHandler         *kubernetes.Handler
+	FileHandler               *file.Handler
+	LDAPHandler               *ldap.Handler
+	MOTDHandler               *motd.Handler
+	RegistryHandler           *registries.Handler
+	ResourceControlHandler    *resourcecontrols.Handler
+	RoleHandler               *roles.Handler
+	SettingsHandler           *settings.Handler
+	SSLHandler                *ssl.Handler
+	OpenAMTHandler            *openamt.Handler
+	FDOHandler                *fdo.Handler
+	StackHandler              *stacks.Handler
+	StatusHandler             *status.Handler
+	StorybookHandler          *storybook.Handler
+	TagHandler                *tags.Handler
+	TeamMembershipHandler     *teammemberships.Handler
+	TeamHandler               *teams.Handler
+	TemplatesHandler          *templates.Handler
+	UploadHandler             *upload.Handler
+	UserHandler               *users.Handler
+	WebSocketHandler          *websocket.Handler
+	WebhookHandler            *webhooks.Handler
 }
 
 // @title PortainerCE API
-// @version 2.13.0
+// @version 2.17.0
 // @description.markdown api-description.md
 // @termsOfService
 
@@ -165,6 +169,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.StripPrefix("/api", h.BackupHandler).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/custom_templates"):
 		http.StripPrefix("/api", h.CustomTemplatesHandler).ServeHTTP(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/edge_update_schedules"):
+		http.StripPrefix("/api", h.EdgeUpdateScheduleHandler).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/edge_stacks"):
 		http.StripPrefix("/api", h.EdgeStacksHandler).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/edge_groups"):
@@ -179,6 +185,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.StripPrefix("/api", h.EndpointGroupHandler).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, "/api/kubernetes"):
 		http.StripPrefix("/api", h.KubernetesHandler).ServeHTTP(w, r)
+	case strings.HasPrefix(r.URL.Path, "/api/docker"):
+		http.StripPrefix("/api/docker", h.DockerHandler).ServeHTTP(w, r)
 
 	// Helm subpath under kubernetes -> /api/endpoints/{id}/kubernetes/helm
 	case strings.HasPrefix(r.URL.Path, "/api/endpoints/") && strings.Contains(r.URL.Path, "/kubernetes/helm"):

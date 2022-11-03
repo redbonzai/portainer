@@ -14,7 +14,7 @@ import (
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/internal/registryutils"
-	"github.com/portainer/portainer/api/internal/stackutils"
+	"github.com/portainer/portainer/api/stacks/stackutils"
 )
 
 // SwarmStackManager represents a service for managing stacks.
@@ -89,8 +89,8 @@ func (manager *SwarmStackManager) Logout(endpoint *portainer.Endpoint) error {
 }
 
 // Deploy executes the docker stack deploy command.
-func (manager *SwarmStackManager) Deploy(stack *portainer.Stack, prune bool, endpoint *portainer.Endpoint) error {
-	filePaths := stackutils.GetStackFilePaths(stack)
+func (manager *SwarmStackManager) Deploy(stack *portainer.Stack, prune bool, pullImage bool, endpoint *portainer.Endpoint) error {
+	filePaths := stackutils.GetStackFilePaths(stack, false)
 	command, args, err := manager.prepareDockerCommandAndArgs(manager.binaryPath, manager.configPath, endpoint)
 	if err != nil {
 		return err
@@ -100,6 +100,9 @@ func (manager *SwarmStackManager) Deploy(stack *portainer.Stack, prune bool, end
 		args = append(args, "stack", "deploy", "--prune", "--with-registry-auth")
 	} else {
 		args = append(args, "stack", "deploy", "--with-registry-auth")
+	}
+	if !pullImage {
+		args = append(args, "--resolve-image=never")
 	}
 
 	args = configureFilePaths(args, filePaths)
@@ -200,12 +203,7 @@ func (manager *SwarmStackManager) updateDockerCLIConfiguration(configPath string
 	headersObject["X-PortainerAgent-Signature"] = signature
 	headersObject["X-PortainerAgent-PublicKey"] = manager.signatureService.EncodedPublicKey()
 
-	err = manager.fileService.WriteJSONToFile(configFilePath, config)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return manager.fileService.WriteJSONToFile(configFilePath, config)
 }
 
 func (manager *SwarmStackManager) retrieveConfigurationFromDisk(path string) (map[string]interface{}, error) {

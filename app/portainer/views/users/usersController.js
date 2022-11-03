@@ -1,5 +1,4 @@
 import _ from 'lodash-es';
-import { StrengthCheck } from 'Portainer/helpers/password';
 
 angular.module('portainer.app').controller('UsersController', [
   '$q',
@@ -17,7 +16,6 @@ angular.module('portainer.app').controller('UsersController', [
       userCreationError: '',
       validUsername: false,
       actionInProgress: false,
-      passwordStrength: false,
     };
 
     $scope.formValues = {
@@ -25,11 +23,19 @@ angular.module('portainer.app').controller('UsersController', [
       Password: '',
       ConfirmPassword: '',
       Administrator: false,
-      Teams: [],
+      TeamIds: [],
     };
 
-    $scope.onPasswordChange = function () {
-      $scope.state.passwordStrength = StrengthCheck($scope.formValues.Password);
+    $scope.handleAdministratorChange = function (checked) {
+      return $scope.$evalAsync(() => {
+        $scope.formValues.Administrator = checked;
+      });
+    };
+
+    $scope.onChangeTeamIds = function (teamIds) {
+      return $scope.$evalAsync(() => {
+        $scope.formValues.TeamIds = teamIds;
+      });
     };
 
     $scope.checkUsernameValidity = function () {
@@ -50,11 +56,7 @@ angular.module('portainer.app').controller('UsersController', [
       var username = $scope.formValues.Username;
       var password = $scope.formValues.Password;
       var role = $scope.formValues.Administrator ? 1 : 2;
-      var teamIds = [];
-      angular.forEach($scope.formValues.Teams, function (team) {
-        teamIds.push(team.Id);
-      });
-      UserService.createUser(username, password, role, teamIds)
+      UserService.createUser(username, password, role, $scope.formValues.TeamIds)
         .then(function success() {
           Notifications.success('User successfully created', username);
           $state.reload();
@@ -128,6 +130,8 @@ angular.module('portainer.app').controller('UsersController', [
           $scope.users = users;
           $scope.teams = _.orderBy(data.teams, 'Name', 'asc');
           $scope.AuthenticationMethod = data.settings.AuthenticationMethod;
+          $scope.requiredPasswordLength = data.settings.RequiredPasswordLength;
+          $scope.teamSync = data.settings.TeamSync;
         })
         .catch(function error(err) {
           Notifications.error('Failure', err, 'Unable to retrieve users and teams');

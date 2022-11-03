@@ -1,6 +1,9 @@
 angular.module('portainer.docker').controller('BuildImageController', BuildImageController);
 
-function BuildImageController($scope, $async, $window, ModalService, BuildService, Notifications, HttpRequestHelper) {
+/* @ngInject */
+function BuildImageController($scope, $async, $window, ModalService, BuildService, Notifications, HttpRequestHelper, endpoint) {
+  $scope.endpoint = endpoint;
+
   $scope.state = {
     BuildType: 'editor',
     actionInProgress: false,
@@ -9,9 +12,10 @@ function BuildImageController($scope, $async, $window, ModalService, BuildServic
   };
 
   $scope.formValues = {
-    ImageNames: [{ Name: '' }],
+    ImageNames: [{ Name: '', Valid: false, Unique: true }],
     UploadFile: null,
     DockerFileContent: '',
+    AdditionalFiles: [],
     URL: '',
     Path: 'Dockerfile',
     NodeName: null,
@@ -27,12 +31,38 @@ function BuildImageController($scope, $async, $window, ModalService, BuildServic
     $scope.state.isEditorDirty = false;
   });
 
+  $scope.checkName = function (index) {
+    var item = $scope.formValues.ImageNames[index];
+    item.Valid = true;
+    item.Unique = true;
+    if (item.Name !== '') {
+      // Check unique
+      $scope.formValues.ImageNames.forEach((element, idx) => {
+        if (idx != index && element.Name == item.Name) {
+          item.Valid = false;
+          item.Unique = false;
+        }
+      });
+      if (!item.Valid) {
+        return;
+      }
+    }
+    // Validation
+    const parts = item.Name.split('/');
+    const repository = parts[parts.length - 1];
+    const repositoryRegExp = RegExp('^[a-z0-9-_]{2,255}(:[A-Za-z0-9-_.]{1,128})?$');
+    item.Valid = repositoryRegExp.test(repository);
+  };
+
   $scope.addImageName = function () {
-    $scope.formValues.ImageNames.push({ Name: '' });
+    $scope.formValues.ImageNames.push({ Name: '', Valid: false, Unique: true });
   };
 
   $scope.removeImageName = function (index) {
     $scope.formValues.ImageNames.splice(index, 1);
+    for (var i = 0; i < $scope.formValues.ImageNames.length; i++) {
+      $scope.checkName(i);
+    }
   };
 
   function buildImageBasedOnBuildType(method, names) {
@@ -47,7 +77,12 @@ function BuildImageController($scope, $async, $window, ModalService, BuildServic
       return BuildService.buildImageFromURL(names, URL, dockerfilePath);
     } else {
       var dockerfileContent = $scope.formValues.DockerFileContent;
-      return BuildService.buildImageFromDockerfileContent(names, dockerfileContent);
+      if ($scope.formValues.AdditionalFiles.length === 0) {
+        return BuildService.buildImageFromDockerfileContent(names, dockerfileContent);
+      } else {
+        var additionalFiles = $scope.formValues.AdditionalFiles;
+        return BuildService.buildImageFromDockerfileContentAndFiles(names, dockerfileContent, additionalFiles);
+      }
     }
   }
 
@@ -92,13 +127,15 @@ function BuildImageController($scope, $async, $window, ModalService, BuildServic
   }
 
   $scope.validImageNames = function () {
+    if ($scope.formValues.ImageNames.length == 0) {
+      return false;
+    }
     for (var i = 0; i < $scope.formValues.ImageNames.length; i++) {
-      var item = $scope.formValues.ImageNames[i];
-      if (item.Name !== '') {
-        return true;
+      if (!$scope.formValues.ImageNames[i].Valid) {
+        return false;
       }
     }
-    return false;
+    return true;
   };
 
   $scope.editorUpdate = function (cm) {
@@ -110,5 +147,9 @@ function BuildImageController($scope, $async, $window, ModalService, BuildServic
     if ($scope.state.BuildType === 'editor' && $scope.formValues.DockerFileContent && $scope.state.isEditorDirty) {
       return ModalService.confirmWebEditorDiscard();
     }
+  };
+
+  $scope.selectAdditionalFiles = function (files) {
+    $scope.formValues.AdditionalFiles = files;
   };
 }

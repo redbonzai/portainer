@@ -1,5 +1,8 @@
-import { Environment, PlatformType } from '@/portainer/environments/types';
-import { getPlatformType } from '@/portainer/environments/utils';
+import {
+  Environment,
+  PlatformType,
+} from '@/react/portainer/environments/types';
+import { getPlatformType } from '@/react/portainer/environments/utils';
 
 import { EnvironmentStatsDocker } from './EnvironmentStatsDocker';
 import { EnvironmentStatsKubernetes } from './EnvironmentStatsKubernetes';
@@ -15,6 +18,8 @@ export function EnvironmentStats({ environment }: Props) {
       return (
         <EnvironmentStatsKubernetes
           snapshots={environment.Kubernetes.Snapshots || []}
+          type={environment.Type}
+          agentVersion={environment.Agent.Version}
         />
       );
     case PlatformType.Docker:
@@ -22,6 +27,7 @@ export function EnvironmentStats({ environment }: Props) {
         <EnvironmentStatsDocker
           snapshots={environment.Snapshots}
           type={environment.Type}
+          agentVersion={environment.Agent.Version}
         />
       );
     default:

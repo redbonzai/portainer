@@ -1,4 +1,4 @@
-import { Environment } from '@/portainer/environments/types';
+import { Environment } from '@/react/portainer/environments/types';
 
 import { DeploymentScripts } from '../APITab/DeploymentScripts';
 
@@ -13,7 +13,7 @@ export function SocketTab({ onCreate }: Props) {
     <>
       <DeploymentScripts />
 
-      <div className="wizard-form">
+      <div className="mt-5">
         <SocketForm onCreate={onCreate} />
       </div>
     </>
