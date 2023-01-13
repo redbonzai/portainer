@@ -1,6 +1,7 @@
 import { Formik, Form } from 'formik';
+import { Laptop } from 'lucide-react';
 
-import { EdgeCheckinIntervalField } from '@/edge/components/EdgeCheckInIntervalField';
+import { EdgeCheckinIntervalField } from '@/react/edge/components/EdgeCheckInIntervalField';
 
 import { Switch } from '@@/form-components/SwitchField/Switch';
 import { FormControl } from '@@/form-components/FormControl';
@@ -12,12 +13,8 @@ import { FormSectionTitle } from '@@/form-components/FormSectionTitle';
 import { Settings } from '../types';
 
 import { validationSchema } from './EdgeComputeSettings.validation';
-
-export interface FormValues {
-  EdgeAgentCheckinInterval: number;
-  EnableEdgeComputeFeatures: boolean;
-  EnforceEdgeID: boolean;
-}
+import { FormValues } from './types';
+import { AddDeviceButton } from './AddDeviceButton';
 
 interface Props {
   settings?: Settings;
@@ -32,7 +29,16 @@ export function EdgeComputeSettings({ settings, onSubmit }: Props) {
   return (
     <div className="row">
       <Widget>
-        <WidgetTitle icon="svg-laptop" title="Edge Compute settings" />
+        <WidgetTitle
+          icon={Laptop}
+          title={
+            <>
+              <span className="mr-3">Edge Compute settings</span>
+              {settings.EnableEdgeComputeFeatures && <AddDeviceButton />}
+            </>
+          }
+        />
+
         <WidgetBody>
           <Formik
             initialValues={settings}

@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
+import { AlertTriangle, Database } from 'lucide-react';
+import { useStore } from 'zustand';
 
 import { confirmWarn } from '@/portainer/services/modal.service/confirm';
 
 import { Datatable } from '@@/datatables';
 import { Button, ButtonGroup } from '@@/buttons';
 import { Icon } from '@@/Icon';
+import { useSearchBarState } from '@@/datatables/SearchBar';
+import { createPersistedStore } from '@@/datatables/types';
 
 import { IngressControllerClassMap } from '../types';
 
 import { useColumns } from './columns';
-import { createStore } from './datatable-store';
 
-const useStore = createStore('ingressClasses');
+const storageKey = 'ingressClasses';
+const settingsStore = createPersistedStore(storageKey);
 
 interface Props {
   onChangeControllers: (
@@ -34,10 +38,11 @@ export function IngressClassDatatable({
   noIngressControllerLabel,
   view,
 }: Props) {
+  const settings = useStore(settingsStore);
+  const [search, setSearch] = useSearchBarState(storageKey);
   const [ingControllerFormValues, setIngControllerFormValues] = useState(
     ingressControllers || []
   );
-  const settings = useStore();
   const columns = useColumns();
 
   useEffect(() => {
@@ -76,19 +81,20 @@ export function IngressClassDatatable({
     <div className="-mx-[15px]">
       <Datatable
         dataset={ingControllerFormValues || []}
-        storageKey="ingressClasses"
         columns={columns}
-        settingsStore={settings}
         isLoading={isLoading}
         emptyContentLabel={noIngressControllerLabel}
-        titleOptions={{
-          icon: 'database',
-          title: 'Ingress controllers',
-          featherIcon: true,
-        }}
+        title="Ingress Controllers"
+        titleIcon={Database}
         getRowId={(row) => `${row.Name}-${row.ClassName}-${row.Type}`}
         renderTableActions={(selectedRows) => renderTableActions(selectedRows)}
         description={renderIngressClassDescription()}
+        initialPageSize={settings.pageSize}
+        onPageSizeChange={settings.setPageSize}
+        initialSortBy={settings.sortBy}
+        onSortByChange={settings.setSortBy}
+        searchValue={search}
+        onSearchChange={setSearch}
       />
     </div>
   );
@@ -144,7 +150,7 @@ export function IngressClassDatatable({
           ingControllerFormValues &&
           isUnsavedChanges(ingressControllers, ingControllerFormValues) && (
             <span className="flex items-center text-warning mt-1">
-              <Icon icon="alert-triangle" feather className="!mr-1" />
+              <Icon icon={AlertTriangle} className="!mr-1" />
               <span className="text-warning">Unsaved changes.</span>
             </span>
           )}

@@ -1,14 +1,14 @@
 import { Formik, Form } from 'formik';
+import { Plug2 } from 'lucide-react';
 
 import { Environment } from '@/react/portainer/environments/types';
 import { useCreateEdgeAgentEnvironmentMutation } from '@/react/portainer/environments/queries/useCreateEnvironmentMutation';
 import { baseHref } from '@/portainer/helpers/pathHelper';
-import { EdgeCheckinIntervalField } from '@/edge/components/EdgeCheckInIntervalField';
+import { EdgeCheckinIntervalField } from '@/react/edge/components/EdgeCheckInIntervalField';
 import { useCreateEdgeDeviceParam } from '@/react/portainer/environments/wizard/hooks/useCreateEdgeDeviceParam';
 
 import { FormSection } from '@@/form-components/FormSection';
 import { LoadingButton } from '@@/buttons/LoadingButton';
-import { Icon } from '@@/Icon';
 
 import { MoreSettingsSection } from '../../MoreSettingsSection';
 import { Hardware } from '../../Hardware/Hardware';
@@ -61,11 +61,8 @@ export function EdgeAgentForm({ onCreate, readonly, showGpus = false }: Props) {
                   isLoading={createMutation.isLoading}
                   loadingText="Creating environment..."
                   disabled={!isValid}
+                  icon={Plug2}
                 >
-                  <Icon
-                    icon="svg-plug"
-                    className="icon icon-sm vertical-center"
-                  />
                   Create
                 </LoadingButton>
               </div>

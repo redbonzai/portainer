@@ -23,7 +23,7 @@
               <div class="help-block" ng-show="$ctrl.form.$invalid">
                 <div class="small text-warning">
                   <div ng-messages="$ctrl.form.$error">
-                    <p ng-message="required" class="vertical-center"> <pr-icon icon="'alert-triangle'" mode="'warning'" feather="true"></pr-icon> Name is required. </p>
+                    <p ng-message="required" class="vertical-center"> <pr-icon icon="'alert-triangle'" mode="'warning'"></pr-icon> Name is required. </p>
                   </div>
                 </div>
               </div>
@@ -50,16 +50,24 @@
           <div class="form-group">
             <div class="col-sm-12">
               <div class="small text-muted space-right" ng-if="$ctrl.formValues.DeploymentType === 0 && $ctrl.hasKubeEndpoint()">
-                <pr-icon icon="'alert-triangle'" feather="true" mode="'warning'"></pr-icon>
+                <pr-icon icon="'alert-triangle'" mode="'warning'"></pr-icon>
                 Portainer uses <a href="https://kompose.io/" target="_blank">Kompose</a> to convert your Compose manifest to a Kubernetes compliant manifest. Be wary that not all
                 the Compose format options are supported by Kompose at the moment.
               </div>
             </div>
           </div>
 
-          <edge-stacks-docker-compose-form ng-if="$ctrl.formValues.DeploymentType == 0" form-values="$ctrl.formValues" state="$ctrl.state"></edge-stacks-docker-compose-form>
+          <edge-stacks-docker-compose-form
+            ng-if="$ctrl.formValues.DeploymentType == $ctrl.EditorType.Compose"
+            form-values="$ctrl.formValues"
+            state="$ctrl.state"
+          ></edge-stacks-docker-compose-form>
 
-          <edge-stacks-kube-manifest-form ng-if="$ctrl.formValues.DeploymentType == 1" form-values="$ctrl.formValues" state="$ctrl.state"></edge-stacks-kube-manifest-form>
+          <edge-stacks-kube-manifest-form
+            ng-if="$ctrl.formValues.DeploymentType == $ctrl.EditorType.Kubernetes"
+            form-values="$ctrl.formValues"
+            state="$ctrl.state"
+          ></edge-stacks-kube-manifest-form>
 
           <!-- actions -->
           <div class="col-sm-12 form-section-title"> Actions </div>

@@ -5,9 +5,9 @@ import {
   LicenseInfo,
   LicenseType,
 } from '@/portainer/license-management/types';
-import { EnvironmentGroup } from '@/portainer/environment-groups/types';
+import { EnvironmentGroup } from '@/react/portainer/environments/environment-groups/types';
 import { Tag } from '@/portainer/tags/types';
-import { StatusResponse } from '@/portainer/services/api/status.service';
+import { StatusResponse } from '@/react/portainer/system/useSystemStatus';
 import { createMockTeams } from '@/react-tools/test-mocks';
 import { PublicSettingsResponse } from '@/react/portainer/settings/types';
 import { UserId } from '@/portainer/users/types';
@@ -30,6 +30,8 @@ const licenseInfo: LicenseInfo = {
   expiresAt: Number.MAX_SAFE_INTEGER,
   productEdition: Edition.EE,
   valid: true,
+  enforcedAt: 0,
+  enforced: false,
 };
 
 export const handlers = [
@@ -72,7 +74,18 @@ export const handlers = [
   }),
   rest.get<DefaultRequestBody, PathParams, Partial<PublicSettingsResponse>>(
     '/api/settings/public',
-    (req, res, ctx) => res(ctx.json({}))
+    (req, res, ctx) =>
+      res(
+        ctx.json({
+          Edge: {
+            AsyncMode: false,
+            CheckinInterval: 60,
+            CommandInterval: 60,
+            PingInterval: 60,
+            SnapshotInterval: 60,
+          },
+        })
+      )
   ),
   rest.get<DefaultRequestBody, PathParams, Partial<StatusResponse>>(
     '/api/status',

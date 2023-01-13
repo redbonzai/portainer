@@ -1,4 +1,5 @@
 import { ping } from '@/docker/services/ping';
+import { environmentStore } from '@/react/hooks/current-environment-store';
 import {
   Environment,
   EnvironmentType,
@@ -9,12 +10,20 @@ interface State {
   pingInterval: NodeJS.Timer | null;
 }
 
+const DEFAULT_TITLE = 'Portainer';
+
 /* @ngInject */
 export function EndpointProvider() {
   const state: State = {
     currentEndpoint: null,
     pingInterval: null,
   };
+
+  environmentStore.subscribe((state) => {
+    if (!state.environmentId) {
+      setCurrentEndpoint(null);
+    }
+  });
 
   return { endpointID, setCurrentEndpoint, currentEndpoint, clean };
 
@@ -33,6 +42,17 @@ export function EndpointProvider() {
     if (endpoint && endpoint.Type === EnvironmentType.EdgeAgentOnDocker) {
       state.pingInterval = setInterval(() => ping(endpoint.Id), 60 * 1000);
     }
+
+    if (endpoint === null) {
+      sessionStorage.setItem(
+        'portainer.environmentId',
+        JSON.stringify(undefined)
+      );
+    }
+
+    document.title = endpoint
+      ? `${DEFAULT_TITLE} | ${endpoint.Name}`
+      : `${DEFAULT_TITLE}`;
   }
 
   function currentEndpoint() {
@@ -41,6 +61,7 @@ export function EndpointProvider() {
 
   function clean() {
     setCurrentEndpoint(null);
+    environmentStore.getState().clear();
   }
 }
 

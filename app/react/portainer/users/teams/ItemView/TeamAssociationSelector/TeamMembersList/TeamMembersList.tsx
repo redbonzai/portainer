@@ -5,11 +5,11 @@ import {
   useTable,
 } from 'react-table';
 import { useMemo, useState } from 'react';
-import { Users, UserX } from 'react-feather';
+import { Users, UserX } from 'lucide-react';
 
 import { User, UserId } from '@/portainer/users/types';
 import { TeamId, TeamRole } from '@/react/portainer/users/teams/types';
-import { useUser } from '@/portainer/hooks/useUser';
+import { useUser } from '@/react/hooks/useUser';
 import { notifySuccess } from '@/portainer/services/notifications';
 import {
   useRemoveMemberMutation,

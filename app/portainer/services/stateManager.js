@@ -52,6 +52,9 @@ function StateManagerFactory(
   };
 
   manager.resetPasswordChangeSkips = function (userID) {
+    if (!state.UI.timesPasswordChangeSkipped) {
+      return;
+    }
     if (state.UI.timesPasswordChangeSkipped[userID]) state.UI.timesPasswordChangeSkipped[userID] = 0;
     LocalStorage.storeUIState(state.UI);
   };
@@ -194,11 +197,9 @@ function StateManagerFactory(
       return deferred.promise;
     }
 
-    const reload = endpoint.Status === 1 || !endpoint.Snaphosts || !endpoint.Snaphosts.length || !endpoint.Snapshots[0].SnapshotRaw;
-
     $q.all({
-      version: reload ? SystemService.version() : $q.when(endpoint.Snapshots[0].SnapshotRaw.Version),
-      info: reload ? SystemService.info() : $q.when(endpoint.Snapshots[0].SnapshotRaw.Info),
+      version: SystemService.version(),
+      info: SystemService.info(),
     })
       .then(function success(data) {
         var endpointMode = InfoHelper.determineEndpointMode(data.info, endpoint.Type);

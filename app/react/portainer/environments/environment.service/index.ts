@@ -1,5 +1,5 @@
 import axios, { parseAxiosError } from '@/portainer/services/axios';
-import { type EnvironmentGroupId } from '@/portainer/environment-groups/types';
+import { type EnvironmentGroupId } from '@/react/portainer/environments/environment-groups/types';
 import { type TagId } from '@/portainer/tags/types';
 import { UserId } from '@/portainer/users/types';
 import { TeamId } from '@/react/portainer/users/teams/types';
@@ -28,6 +28,7 @@ export interface EnvironmentsQueryParams {
   provisioned?: boolean;
   name?: string;
   agentVersions?: string[];
+  updateInformation?: boolean;
 }
 
 export interface GetEnvironmentsOptions {
@@ -46,7 +47,12 @@ export async function getEnvironments(
   }: GetEnvironmentsOptions = { query: {} }
 ) {
   if (query.tagIds && query.tagIds.length === 0) {
-    return { totalCount: 0, value: <Environment[]>[] };
+    return {
+      totalCount: 0,
+      value: <Environment[]>[],
+      totalAvailable: 0,
+      updateAvailable: false,
+    };
   }
 
   const url = buildUrl();
@@ -63,11 +69,13 @@ export async function getEnvironments(
     const response = await axios.get<Environment[]>(url, { params });
     const totalCount = response.headers['x-total-count'];
     const totalAvailable = response.headers['x-total-available'];
+    const updateAvailable = response.headers['x-update-available'] === 'true';
 
     return {
       totalCount: parseInt(totalCount, 10),
       value: response.data,
       totalAvailable: parseInt(totalAvailable, 10),
+      updateAvailable,
     };
   } catch (e) {
     throw parseAxiosError(e as Error);

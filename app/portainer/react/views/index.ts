@@ -1,6 +1,6 @@
 import angular from 'angular';
 
-import { HomeView } from '@/portainer/home';
+import { HomeView } from '@/react/portainer/HomeView';
 import { withCurrentUser } from '@/react-tools/withCurrentUser';
 import { r2a } from '@/react-tools/react2angular';
 import { withReactQuery } from '@/react-tools/withReactQuery';
@@ -32,8 +32,8 @@ export const viewsModule = angular
   )
   .component(
     'settingsEdgeCompute',
-    r2a(withReactQuery(withCurrentUser(EdgeComputeSettingsView)), [
-      'onSubmit',
-      'settings',
-    ])
+    r2a(
+      withUIRouter(withReactQuery(withCurrentUser(EdgeComputeSettingsView))),
+      ['onSubmit', 'settings']
+    )
   ).name;

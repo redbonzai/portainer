@@ -6,8 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/portainer/portainer/api/database/models"
 	"github.com/portainer/portainer/api/dataservices/errors"
-	"github.com/portainer/portainer/api/edgetypes"
 
 	portainer "github.com/portainer/portainer/api"
 )
@@ -28,7 +28,6 @@ type (
 		EdgeGroup() EdgeGroupService
 		EdgeJob() EdgeJobService
 		EdgeStack() EdgeStackService
-		EdgeUpdateSchedule() EdgeUpdateScheduleService
 		Endpoint() EndpointService
 		EndpointGroup() EndpointGroupService
 		EndpointRelation() EndpointRelationService
@@ -68,6 +67,7 @@ type (
 		EdgeGroup(ID portainer.EdgeGroupID) (*portainer.EdgeGroup, error)
 		Create(group *portainer.EdgeGroup) error
 		UpdateEdgeGroup(ID portainer.EdgeGroupID, group *portainer.EdgeGroup) error
+		UpdateEdgeGroupFunc(ID portainer.EdgeGroupID, updateFunc func(group *portainer.EdgeGroup)) error
 		DeleteEdgeGroup(ID portainer.EdgeGroupID) error
 		BucketName() string
 	}
@@ -83,23 +83,14 @@ type (
 		BucketName() string
 	}
 
-	EdgeUpdateScheduleService interface {
-		ActiveSchedule(environmentID portainer.EndpointID) *edgetypes.EndpointUpdateScheduleRelation
-		ActiveSchedules(environmentIDs []portainer.EndpointID) []edgetypes.EndpointUpdateScheduleRelation
-		List() ([]edgetypes.UpdateSchedule, error)
-		Item(ID edgetypes.UpdateScheduleID) (*edgetypes.UpdateSchedule, error)
-		Create(edgeUpdateSchedule *edgetypes.UpdateSchedule) error
-		Update(ID edgetypes.UpdateScheduleID, edgeUpdateSchedule *edgetypes.UpdateSchedule) error
-		Delete(ID edgetypes.UpdateScheduleID) error
-		BucketName() string
-	}
-
 	// EdgeStackService represents a service to manage Edge stacks
 	EdgeStackService interface {
 		EdgeStacks() ([]portainer.EdgeStack, error)
 		EdgeStack(ID portainer.EdgeStackID) (*portainer.EdgeStack, error)
+		EdgeStackVersion(ID portainer.EdgeStackID) (int, bool)
 		Create(id portainer.EdgeStackID, edgeStack *portainer.EdgeStack) error
 		UpdateEdgeStack(ID portainer.EdgeStackID, edgeStack *portainer.EdgeStack) error
+		UpdateEdgeStackFunc(ID portainer.EdgeStackID, updateFunc func(edgeStack *portainer.EdgeStack)) error
 		DeleteEdgeStack(ID portainer.EdgeStackID) error
 		GetNextIdentifier() int
 		BucketName() string
@@ -108,6 +99,9 @@ type (
 	// EndpointService represents a service for managing environment(endpoint) data
 	EndpointService interface {
 		Endpoint(ID portainer.EndpointID) (*portainer.Endpoint, error)
+		EndpointIDByEdgeID(edgeID string) (portainer.EndpointID, bool)
+		Heartbeat(endpointID portainer.EndpointID) (int64, bool)
+		UpdateHeartbeat(endpointID portainer.EndpointID)
 		Endpoints() ([]portainer.Endpoint, error)
 		Create(endpoint *portainer.Endpoint) error
 		UpdateEndpoint(ID portainer.EndpointID, endpoint *portainer.Endpoint) error
@@ -303,12 +297,11 @@ type (
 
 	// VersionService represents a service for managing version data
 	VersionService interface {
-		DBVersion() (int, error)
 		Edition() (portainer.SoftwareEdition, error)
 		InstanceID() (string, error)
-		StoreDBVersion(version int) error
-		StoreInstanceID(ID string) error
-		BucketName() string
+		UpdateInstanceID(ID string) error
+		Version() (*models.Version, error)
+		UpdateVersion(*models.Version) error
 	}
 
 	// WebhookService represents a service for managing webhook data.

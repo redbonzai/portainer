@@ -12,8 +12,10 @@ export function getPlatformType(envType: EnvironmentType) {
       return PlatformType.Docker;
     case EnvironmentType.Azure:
       return PlatformType.Azure;
+    case EnvironmentType.EdgeAgentOnNomad:
+      return PlatformType.Nomad;
     default:
-      throw new Error(`${envType} is not a supported environment type`);
+      throw new Error(`Environment Type ${envType} is not supported`);
   }
 }
 
@@ -23,6 +25,14 @@ export function isDockerEnvironment(envType: EnvironmentType) {
 
 export function isKubernetesEnvironment(envType: EnvironmentType) {
   return getPlatformType(envType) === PlatformType.Kubernetes;
+}
+
+export function getPlatformTypeName(envType: EnvironmentType): string {
+  return PlatformType[getPlatformType(envType)];
+}
+
+export function isNomadEnvironment(envType: EnvironmentType) {
+  return getPlatformType(envType) === PlatformType.Nomad;
 }
 
 export function isAgentEnvironment(envType: EnvironmentType) {
@@ -41,25 +51,57 @@ export function isEdgeEnvironment(envType: EnvironmentType) {
   ].includes(envType);
 }
 
+export function isEdgeAsync(env?: Environment | null) {
+  return !!env && env.Edge.AsyncMode;
+}
+
 export function isUnassociatedEdgeEnvironment(env: Environment) {
   return isEdgeEnvironment(env.Type) && !env.EdgeID;
 }
 
-export function getRoute(environment: Environment) {
-  if (isEdgeEnvironment(environment.Type) && !environment.EdgeID) {
-    return 'portainer.endpoints.endpoint';
+export function isLocalEnvironment(environment: Environment) {
+  return (
+    environment.URL.includes('unix://') ||
+    environment.URL.includes('npipe://') ||
+    environment.Type === EnvironmentType.KubernetesLocal
+  );
+}
+
+export function getDashboardRoute(environment: Environment) {
+  if (isEdgeEnvironment(environment.Type)) {
+    if (!environment.EdgeID) {
+      return {
+        to: 'portainer.endpoints.endpoint',
+        params: { id: environment.Id },
+      };
+    }
+
+    if (isEdgeAsync(environment)) {
+      return {
+        to: 'edge.browse.dashboard',
+        params: { environmentId: environment.EdgeID },
+      };
+    }
   }
 
-  const platform = getPlatformType(environment.Type);
+  const params = { endpointId: environment.Id };
+  const to = getPlatformRoute();
 
-  switch (platform) {
-    case PlatformType.Azure:
-      return 'azure.dashboard';
-    case PlatformType.Docker:
-      return 'docker.dashboard';
-    case PlatformType.Kubernetes:
-      return 'kubernetes.dashboard';
-    default:
-      return '';
+  return { to, params };
+
+  function getPlatformRoute() {
+    const platform = getPlatformType(environment.Type);
+    switch (platform) {
+      case PlatformType.Azure:
+        return 'azure.dashboard';
+      case PlatformType.Docker:
+        return 'docker.dashboard';
+      case PlatformType.Kubernetes:
+        return 'kubernetes.dashboard';
+      case PlatformType.Nomad:
+        return 'nomad.dashboard';
+      default:
+        throw new Error(`Unsupported platform ${platform}`);
+    }
   }
 }

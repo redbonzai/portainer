@@ -1,4 +1,5 @@
 import { PortainerEndpointTypes } from '@/portainer/models/endpoint/models';
+import { EditorType } from '@/react/edge/edge-stacks/types';
 
 export class EditEdgeStackFormController {
   /* @ngInject */
@@ -13,6 +14,8 @@ export class EditEdgeStackFormController {
       1: '',
     };
 
+    this.EditorType = EditorType;
+
     this.onChangeGroups = this.onChangeGroups.bind(this);
     this.onChangeFileContent = this.onChangeFileContent.bind(this);
     this.onChangeComposeConfig = this.onChangeComposeConfig.bind(this);
@@ -22,6 +25,13 @@ export class EditEdgeStackFormController {
     this.onChangeDeploymentType = this.onChangeDeploymentType.bind(this);
     this.removeLineBreaks = this.removeLineBreaks.bind(this);
     this.onChangeFileContent = this.onChangeFileContent.bind(this);
+    this.onChangeUseManifestNamespaces = this.onChangeUseManifestNamespaces.bind(this);
+  }
+
+  onChangeUseManifestNamespaces(value) {
+    this.$scope.$evalAsync(() => {
+      this.model.UseManifestNamespaces = value;
+    });
   }
 
   hasKubeEndpoint() {

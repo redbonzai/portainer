@@ -1,31 +1,34 @@
-import { Clock, Trash2 } from 'react-feather';
+import { Clock, Trash2 } from 'lucide-react';
+import { useStore } from 'zustand';
 
-import {
-  FeatureFlag,
-  useRedirectFeatureFlag,
-} from '@/portainer/feature-flags/useRedirectFeatureFlag';
 import { notifySuccess } from '@/portainer/services/notifications';
 import { confirmDeletionAsync } from '@/portainer/services/modal.service/confirm';
+import { withLimitToBE } from '@/react/hooks/useLimitToBE';
 
 import { Datatable } from '@@/datatables';
 import { PageHeader } from '@@/PageHeader';
 import { Button } from '@@/buttons';
 import { Link } from '@@/Link';
+import { useSearchBarState } from '@@/datatables/SearchBar';
 
 import { useList } from '../queries/list';
-import { EdgeUpdateSchedule } from '../types';
+import { EdgeUpdateSchedule, StatusType } from '../types';
 import { useRemoveMutation } from '../queries/useRemoveMutation';
+import { BetaAlert } from '../common/BetaAlert';
 
 import { columns } from './columns';
 import { createStore } from './datatable-store';
 
 const storageKey = 'update-schedules-list';
-const useStore = createStore(storageKey);
+const settingsStore = createStore(storageKey);
+
+export default withLimitToBE(ListView);
 
 export function ListView() {
-  useRedirectFeatureFlag(FeatureFlag.EdgeRemoteUpdate);
-  const listQuery = useList();
-  const store = useStore();
+  const settings = useStore(settingsStore);
+  const [search, setSearch] = useSearchBarState(storageKey);
+
+  const listQuery = useList(true);
 
   if (!listQuery.data) {
     return null;
@@ -39,21 +42,26 @@ export function ListView() {
         breadcrumbs="Update and rollback"
       />
 
+      <BetaAlert />
+
       <Datatable
-        columns={columns}
-        titleOptions={{
-          title: 'Update & rollback',
-          icon: Clock,
-        }}
         dataset={listQuery.data}
-        settingsStore={store}
-        storageKey={storageKey}
+        columns={columns}
+        title="Update & rollback"
+        titleIcon={Clock}
         emptyContentLabel="No schedules found"
         isLoading={listQuery.isLoading}
         totalCount={listQuery.data.length}
         renderTableActions={(selectedRows) => (
           <TableActions selectedRows={selectedRows} />
         )}
+        initialPageSize={settings.pageSize}
+        onPageSizeChange={settings.setPageSize}
+        initialSortBy={settings.sortBy}
+        onSortByChange={settings.setSortBy}
+        searchValue={search}
+        onSearchChange={setSearch}
+        isRowSelectable={(row) => row.original.status === StatusType.Pending}
       />
     </>
   );

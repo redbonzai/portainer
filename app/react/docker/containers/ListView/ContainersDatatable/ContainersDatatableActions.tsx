@@ -7,10 +7,10 @@ import {
   Slash,
   Square,
   Trash2,
-} from 'react-feather';
+} from 'lucide-react';
 
 import * as notifications from '@/portainer/services/notifications';
-import { useAuthorizations, Authorized } from '@/portainer/hooks/useUser';
+import { useAuthorizations, Authorized } from '@/react/hooks/useUser';
 import { confirmContainerDeletion } from '@/portainer/services/modal.service/prompt';
 import { setPortainerAgentTargetHeader } from '@/portainer/services/http-request.helper';
 import {

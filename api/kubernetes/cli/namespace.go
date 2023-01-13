@@ -7,7 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	portainer "github.com/portainer/portainer/api"
-	"github.com/portainer/portainer/api/database/models"
+	models "github.com/portainer/portainer/api/http/models/kubernetes"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -59,7 +59,7 @@ func (kcl *KubeClient) GetNamespace(name string) (portainer.K8sNamespaceInfo, er
 	return result, nil
 }
 
-// CreateIngress creates a new ingress in a given namespace in a k8s endpoint.
+// CreateNamespace creates a new ingress in a given namespace in a k8s endpoint.
 func (kcl *KubeClient) CreateNamespace(info models.K8sNamespaceDetails) error {
 	client := kcl.cli.CoreV1().Namespaces()
 

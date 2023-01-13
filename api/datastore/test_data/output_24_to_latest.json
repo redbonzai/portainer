@@ -640,6 +640,7 @@
       "Scopes": "",
       "UserIdentifier": ""
     },
+    "ShowKomposeBuildOption": false,
     "SnapshotInterval": "5m",
     "TemplatesURL": "https://raw.githubusercontent.com/portainer/templates/master/templates-2.0.json",
     "TrustOnFirstConnect": false,
@@ -930,8 +931,6 @@
     }
   ],
   "version": {
-    "DB_UPDATING": "false",
-    "DB_VERSION": "80",
-    "INSTANCE_ID": "null"
+    "VERSION": "{\"SchemaVersion\":\"2.18.0\",\"MigratorCount\":0,\"Edition\":1,\"InstanceID\":\"463d5c47-0ea5-4aca-85b1-405ceefee254\"}"
   }
 }

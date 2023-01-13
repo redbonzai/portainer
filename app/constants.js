@@ -1,3 +1,5 @@
+import { BROWSER_OS_PLATFORM } from './react/constants';
+
 export const API_ENDPOINT_AUTH = 'api/auth';
 export const API_ENDPOINT_BACKUP = 'api/backup';
 export const API_ENDPOINT_CUSTOM_TEMPLATES = 'api/custom_templates';
@@ -13,7 +15,6 @@ export const API_ENDPOINT_REGISTRIES = 'api/registries';
 export const API_ENDPOINT_RESOURCE_CONTROLS = 'api/resource_controls';
 export const API_ENDPOINT_SETTINGS = 'api/settings';
 export const API_ENDPOINT_STACKS = 'api/stacks';
-export const API_ENDPOINT_STATUS = 'api/status';
 export const API_ENDPOINT_SUPPORT = 'api/support';
 export const API_ENDPOINT_USERS = 'api/users';
 export const API_ENDPOINT_TAGS = 'api/tags';
@@ -21,7 +22,6 @@ export const API_ENDPOINT_TEAMS = 'api/teams';
 export const API_ENDPOINT_TEAM_MEMBERSHIPS = 'api/team_memberships';
 export const API_ENDPOINT_TEMPLATES = 'api/templates';
 export const API_ENDPOINT_WEBHOOKS = 'api/webhooks';
-export const DEFAULT_TEMPLATES_URL = 'https://raw.githubusercontent.com/portainer/templates/master/templates.json';
 export const PAGINATION_MAX_ITEMS = 10;
 export const APPLICATION_CACHE_VALIDITY = 3600;
 export const CONSOLE_COMMANDS_LABEL_PREFIX = 'io.portainer.commands.';
@@ -31,8 +31,6 @@ export const KUBERNETES_SYSTEM_NAMESPACES = ['kube-system', 'kube-public', 'kube
 export const PORTAINER_FADEOUT = 1500;
 export const STACK_NAME_VALIDATION_REGEX = '^[-_a-z0-9]+$';
 export const TEMPLATE_NAME_VALIDATION_REGEX = '^[-_a-z0-9]+$';
-export const BROWSER_OS_PLATFORM = navigator.userAgent.indexOf('Windows') > -1 ? 'win' : navigator.userAgent.indexOf('Mac') > -1 ? 'mac' : 'lin';
-export const NEW_LINE_BREAKER = BROWSER_OS_PLATFORM === 'win' ? '\r\n' : '\n';
 
 // don't declare new constants, either:
 // - if only used in one file or module, declare in that file or module (as a regular js constant)
@@ -54,7 +52,6 @@ angular
   .constant('API_ENDPOINT_RESOURCE_CONTROLS', API_ENDPOINT_RESOURCE_CONTROLS)
   .constant('API_ENDPOINT_SETTINGS', API_ENDPOINT_SETTINGS)
   .constant('API_ENDPOINT_STACKS', API_ENDPOINT_STACKS)
-  .constant('API_ENDPOINT_STATUS', API_ENDPOINT_STATUS)
   .constant('API_ENDPOINT_SUPPORT', API_ENDPOINT_SUPPORT)
   .constant('API_ENDPOINT_USERS', API_ENDPOINT_USERS)
   .constant('API_ENDPOINT_TAGS', API_ENDPOINT_TAGS)
@@ -62,7 +59,6 @@ angular
   .constant('API_ENDPOINT_TEAM_MEMBERSHIPS', API_ENDPOINT_TEAM_MEMBERSHIPS)
   .constant('API_ENDPOINT_TEMPLATES', API_ENDPOINT_TEMPLATES)
   .constant('API_ENDPOINT_WEBHOOKS', API_ENDPOINT_WEBHOOKS)
-  .constant('DEFAULT_TEMPLATES_URL', DEFAULT_TEMPLATES_URL)
   .constant('PAGINATION_MAX_ITEMS', PAGINATION_MAX_ITEMS)
   .constant('APPLICATION_CACHE_VALIDITY', APPLICATION_CACHE_VALIDITY)
   .constant('CONSOLE_COMMANDS_LABEL_PREFIX', CONSOLE_COMMANDS_LABEL_PREFIX)

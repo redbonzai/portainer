@@ -1,20 +1,25 @@
 import angular from 'angular';
 
-import { FeatureId } from '@/portainer/feature-flags/enums';
+import { FeatureId } from '@/react/portainer/feature-flags/enums';
+// import trackEvent directly because the event only fires once with $analytics.trackEvent
+import { trackEvent } from '@/angulartics.matomo/analytics-services';
 import { options } from './options';
 
 angular.module('portainer.app').controller('SettingsController', [
   '$scope',
+  '$analytics',
   '$state',
   'Notifications',
   'SettingsService',
+  'ModalService',
   'StateManager',
   'BackupService',
   'FileSaver',
   'Blob',
-  function ($scope, $state, Notifications, SettingsService, StateManager, BackupService, FileSaver) {
+  function ($scope, $analytics, $state, Notifications, SettingsService, ModalService, StateManager, BackupService, FileSaver) {
     $scope.customBannerFeatureId = FeatureId.CUSTOM_LOGIN_BANNER;
     $scope.s3BackupFeatureId = FeatureId.S3_BACKUP_SETTING;
+    $scope.enforceDeploymentOptions = FeatureId.ENFORCE_DEPLOYMENT_OPTIONS;
 
     $scope.backupOptions = options;
 
@@ -52,6 +57,10 @@ angular.module('portainer.app').controller('SettingsController', [
 
     $scope.formValues = {
       customLogo: false,
+      ShowKomposeBuildOption: false,
+      KubeconfigExpiry: undefined,
+      HelmRepositoryURL: undefined,
+      BlackListedLabels: [],
       labelName: '',
       labelValue: '',
       enableTelemetry: false,
@@ -59,6 +68,8 @@ angular.module('portainer.app').controller('SettingsController', [
       password: '',
       backupFormType: $scope.BACKUP_FORM_TYPES.FILE,
     };
+
+    $scope.initialFormValues = {};
 
     $scope.onToggleEnableTelemetry = function onToggleEnableTelemetry(checked) {
       $scope.$evalAsync(() => {
@@ -69,6 +80,33 @@ angular.module('portainer.app').controller('SettingsController', [
     $scope.onToggleCustomLogo = function onToggleCustomLogo(checked) {
       $scope.$evalAsync(() => {
         $scope.formValues.customLogo = checked;
+      });
+    };
+
+    $scope.onToggleShowKompose = async function onToggleShowKompose(checked) {
+      if (checked) {
+        ModalService.confirmWarn({
+          title: 'Are you sure?',
+          message: `<p>In a forthcoming Portainer release, we plan to remove support for docker-compose format manifests for Kubernetes deployments, and the Kompose conversion tool which enables this. The reason for this is because Kompose now poses a security risk, since it has a number of Common Vulnerabilities and Exposures (CVEs).</p>
+              <p>Unfortunately, while the Kompose project has a maintainer and is part of the CNCF, it is not being actively maintained. Releases are very infrequent and new pull requests to the project (including ones we've submitted) are taking months to be merged, with new CVEs arising in the meantime.</p>`,
+          buttons: {
+            confirm: {
+              label: 'Ok',
+              className: 'btn-warning',
+            },
+          },
+          callback: function (confirmed) {
+            $scope.setShowCompose(confirmed);
+          },
+        });
+        return;
+      }
+      $scope.setShowCompose(checked);
+    };
+
+    $scope.setShowCompose = function setShowCompose(checked) {
+      return $scope.$evalAsync(() => {
+        $scope.formValues.ShowKomposeBuildOption = checked;
       });
     };
 
@@ -83,22 +121,28 @@ angular.module('portainer.app').controller('SettingsController', [
       $scope.state.featureLimited = limited;
     };
 
-    $scope.removeFilteredContainerLabel = function (index) {
-      var settings = $scope.settings;
-      settings.BlackListedLabels.splice(index, 1);
+    $scope.onChangeCheckInInterval = function (interval) {
+      $scope.$evalAsync(() => {
+        var settings = $scope.settings;
+        settings.EdgeAgentCheckinInterval = interval;
+      });
+    };
 
-      updateSettings(settings);
+    $scope.removeFilteredContainerLabel = function (index) {
+      const filteredSettings = $scope.formValues.BlackListedLabels.filter((_, i) => i !== index);
+      const filteredSettingsPayload = { BlackListedLabels: filteredSettings };
+      updateSettings(filteredSettingsPayload, 'Hidden container settings updated');
     };
 
     $scope.addFilteredContainerLabel = function () {
-      var settings = $scope.settings;
       var label = {
         name: $scope.formValues.labelName,
         value: $scope.formValues.labelValue,
       };
-      settings.BlackListedLabels.push(label);
 
-      updateSettings(settings);
+      const filteredSettings = [...$scope.formValues.BlackListedLabels, label];
+      const filteredSettingsPayload = { BlackListedLabels: filteredSettings };
+      updateSettings(filteredSettingsPayload, 'Hidden container settings updated');
     };
 
     $scope.downloadBackup = function () {
@@ -123,32 +167,53 @@ angular.module('portainer.app').controller('SettingsController', [
         });
     };
 
+    // only update the values from the app settings widget. In future separate the api endpoints
     $scope.saveApplicationSettings = function () {
-      var settings = $scope.settings;
-
-      if (!$scope.formValues.customLogo) {
-        settings.LogoURL = '';
-      }
-
-      settings.EnableTelemetry = $scope.formValues.enableTelemetry;
+      const appSettingsPayload = {
+        SnapshotInterval: $scope.settings.SnapshotInterval,
+        LogoURL: $scope.formValues.customLogo ? $scope.settings.LogoURL : '',
+        EnableTelemetry: $scope.formValues.enableTelemetry,
+        TemplatesURL: $scope.settings.TemplatesURL,
+        EdgeAgentCheckinInterval: $scope.settings.EdgeAgentCheckinInterval,
+      };
 
       $scope.state.actionInProgress = true;
-      updateSettings(settings);
+      updateSettings(appSettingsPayload, 'Application settings updated');
     };
 
-    function updateSettings(settings) {
+    // only update the values from the kube settings widget. In future separate the api endpoints
+    $scope.saveKubernetesSettings = function () {
+      const kubeSettingsPayload = {
+        KubeconfigExpiry: $scope.formValues.KubeconfigExpiry,
+        HelmRepositoryURL: $scope.formValues.HelmRepositoryURL,
+        GlobalDeploymentOptions: $scope.formValues.GlobalDeploymentOptions,
+        ShowKomposeBuildOption: $scope.formValues.ShowKomposeBuildOption,
+      };
+
+      if (kubeSettingsPayload.ShowKomposeBuildOption !== $scope.initialFormValues.ShowKomposeBuildOption && $scope.initialFormValues.enableTelemetry) {
+        trackEvent('kubernetes-allow-compose', { category: 'kubernetes', metadata: { 'kubernetes-allow-compose': kubeSettingsPayload.ShowKomposeBuildOption } });
+      }
+
+      $scope.state.kubeSettingsActionInProgress = true;
+      updateSettings(kubeSettingsPayload, 'Kubernetes settings updated');
+    };
+
+    function updateSettings(settings, successMessage = 'Settings updated') {
       SettingsService.update(settings)
-        .then(function success() {
-          Notifications.success('Success', 'Settings updated');
+        .then(function success(response) {
+          Notifications.success('Success', successMessage);
           StateManager.updateLogo(settings.LogoURL);
           StateManager.updateSnapshotInterval(settings.SnapshotInterval);
           StateManager.updateEnableTelemetry(settings.EnableTelemetry);
-          $state.reload();
+          $scope.initialFormValues.ShowKomposeBuildOption = response.ShowKomposeBuildOption;
+          $scope.initialFormValues.enableTelemetry = response.EnableTelemetry;
+          $scope.formValues.BlackListedLabels = response.BlackListedLabels;
         })
         .catch(function error(err) {
           Notifications.error('Failure', err, 'Unable to update settings');
         })
         .finally(function final() {
+          $scope.state.kubeSettingsActionInProgress = false;
           $scope.state.actionInProgress = false;
         });
     }
@@ -165,7 +230,17 @@ angular.module('portainer.app').controller('SettingsController', [
           if (settings.LogoURL !== '') {
             $scope.formValues.customLogo = true;
           }
+
           $scope.formValues.enableTelemetry = settings.EnableTelemetry;
+          $scope.formValues.KubeconfigExpiry = settings.KubeconfigExpiry;
+          $scope.formValues.HelmRepositoryURL = settings.HelmRepositoryURL;
+          $scope.formValues.BlackListedLabels = settings.BlackListedLabels;
+          if (settings.ShowKomposeBuildOption) {
+            $scope.formValues.ShowKomposeBuildOption = settings.ShowKomposeBuildOption;
+          }
+
+          $scope.initialFormValues.ShowKomposeBuildOption = settings.ShowKomposeBuildOption;
+          $scope.initialFormValues.enableTelemetry = settings.EnableTelemetry;
         })
         .catch(function error(err) {
           Notifications.error('Failure', err, 'Unable to retrieve application settings');

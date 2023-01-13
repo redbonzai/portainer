@@ -1,9 +1,11 @@
 import _ from 'lodash-es';
 
+import featureFlagModule from '@/react/portainer/feature-flags';
+
 import './rbac';
+
 import componentsModule from './components';
 import settingsModule from './settings';
-import featureFlagModule from './feature-flags';
 import userActivityModule from './user-activity';
 import servicesModule from './services';
 import { reactModule } from './react';
@@ -173,7 +175,10 @@ angular
 
       var endpoint = {
         name: 'portainer.endpoints.endpoint',
-        url: '/:id',
+        url: '/:id?redirectTo',
+        params: {
+          redirectTo: '',
+        },
         views: {
           'content@': {
             templateUrl: './views/endpoints/edit/endpoint.html',
@@ -296,18 +301,6 @@ angular
         url: '/init',
         views: {
           'sidebar@': {},
-        },
-      };
-
-      var initEndpoint = {
-        name: 'portainer.init.endpoint',
-        url: '/endpoint',
-        views: {
-          'content@': {
-            templateUrl: './views/init/endpoint/initEndpoint.html',
-            controller: 'InitEndpointController',
-            controllerAs: 'ctrl',
-          },
         },
       };
 
@@ -438,7 +431,6 @@ angular
       $stateRegistryProvider.register(groupCreation);
       $stateRegistryProvider.register(home);
       $stateRegistryProvider.register(init);
-      $stateRegistryProvider.register(initEndpoint);
       $stateRegistryProvider.register(initAdmin);
       $stateRegistryProvider.register(registries);
       $stateRegistryProvider.register(registry);

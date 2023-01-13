@@ -1,8 +1,8 @@
 import { useCurrentStateAndParams, useRouter } from '@uirouter/react';
 import { useEffect } from 'react';
-import { X, Slash } from 'react-feather';
+import { X, Slash } from 'lucide-react';
 import clsx from 'clsx';
-import angular from 'angular';
+import { useStore } from 'zustand';
 
 import {
   PlatformType,
@@ -11,8 +11,10 @@ import {
 } from '@/react/portainer/environments/types';
 import { getPlatformType } from '@/react/portainer/environments/utils';
 import { useEnvironment } from '@/react/portainer/environments/queries/useEnvironment';
-import { useLocalStorage } from '@/portainer/hooks/useLocalStorage';
-import { EndpointProviderInterface } from '@/portainer/services/endpointProvider';
+import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
+import { environmentStore } from '@/react/hooks/current-environment-store';
+
+import { Icon } from '@@/Icon';
 
 import { getPlatformIcon } from '../portainer/environments/utils/get-platform-icon';
 
@@ -22,6 +24,7 @@ import { DockerSidebar } from './DockerSidebar';
 import { KubernetesSidebar } from './KubernetesSidebar';
 import { SidebarSection, SidebarSectionTitle } from './SidebarSection';
 import { useSidebarState } from './useSidebarState';
+import { NomadSidebar } from './NomadSidebar';
 
 export function EnvironmentSidebar() {
   const { query: currentEnvironmentQuery, clearEnvironment } =
@@ -42,7 +45,7 @@ export function EnvironmentSidebar() {
         <SidebarSectionTitle>
           <div className="flex items-center gap-1">
             <span>Environment:</span>
-            <Slash size="1em" className="text-xl text-gray-6" />
+            <Icon icon={Slash} className="text-xl !text-gray-6" />
             <span className="text-gray-6 text-sm">None selected</span>
           </div>
         </SidebarSectionTitle>
@@ -67,7 +70,9 @@ function Content({ environment, onClear }: ContentProps) {
       showTitleWhenOpen
     >
       <div className="mt-2">
-        <Sidebar environmentId={environment.Id} environment={environment} />
+        {Sidebar && (
+          <Sidebar environmentId={environment.Id} environment={environment} />
+        )}
       </div>
     </SidebarSection>
   );
@@ -77,11 +82,12 @@ function Content({ environment, onClear }: ContentProps) {
       [key in PlatformType]: React.ComponentType<{
         environmentId: EnvironmentId;
         environment: Environment;
-      }>;
+      }> | null;
     } = {
       [PlatformType.Azure]: AzureSidebar,
       [PlatformType.Docker]: DockerSidebar,
       [PlatformType.Kubernetes]: KubernetesSidebar,
+      [PlatformType.Nomad]: isBE ? NomadSidebar : null,
     };
 
     return sidebar[platform];
@@ -91,35 +97,24 @@ function Content({ environment, onClear }: ContentProps) {
 function useCurrentEnvironment() {
   const { params } = useCurrentStateAndParams();
   const router = useRouter();
-  const [environmentId, setEnvironmentId] = useLocalStorage<
-    EnvironmentId | undefined
-  >('environmentId', undefined, sessionStorage);
 
+  const envStore = useStore(environmentStore);
+  const { setEnvironmentId } = envStore;
   useEffect(() => {
     const environmentId = parseInt(params.endpointId, 10);
     if (params.endpointId && !Number.isNaN(environmentId)) {
       setEnvironmentId(environmentId);
     }
-  }, [params.endpointId, setEnvironmentId]);
+  }, [setEnvironmentId, params.endpointId, params.environmentId]);
 
-  return { query: useEnvironment(environmentId), clearEnvironment };
+  return { query: useEnvironment(envStore.environmentId), clearEnvironment };
 
   function clearEnvironment() {
-    const $injector = angular.element(document).injector();
-    $injector.invoke(
-      /* @ngInject */ (EndpointProvider: EndpointProviderInterface) => {
-        EndpointProvider.setCurrentEndpoint(null);
-        if (!params.endpointId) {
-          document.title = 'Portainer';
-        }
-      }
-    );
-
-    if (params.endpointId) {
+    if (params.endpointId || params.environmentId) {
       router.stateService.go('portainer.home');
     }
 
-    setEnvironmentId(undefined);
+    envStore.clear();
   }
 }
 

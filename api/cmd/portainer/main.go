@@ -4,13 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/portainer/libhelm"
+	libstack "github.com/portainer/docker-compose-wrapper"
+	"github.com/portainer/docker-compose-wrapper/compose"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/apikey"
 	"github.com/portainer/portainer/api/build"
@@ -19,6 +21,7 @@ import (
 	"github.com/portainer/portainer/api/crypto"
 	"github.com/portainer/portainer/api/database"
 	"github.com/portainer/portainer/api/database/boltdb"
+	"github.com/portainer/portainer/api/database/models"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/datastore"
 	"github.com/portainer/portainer/api/demo"
@@ -33,8 +36,10 @@ import (
 	kubeproxy "github.com/portainer/portainer/api/http/proxy/factory/kubernetes"
 	"github.com/portainer/portainer/api/internal/authorization"
 	"github.com/portainer/portainer/api/internal/edge"
+	"github.com/portainer/portainer/api/internal/edge/edgestacks"
 	"github.com/portainer/portainer/api/internal/snapshot"
 	"github.com/portainer/portainer/api/internal/ssl"
+	"github.com/portainer/portainer/api/internal/upgrade"
 	"github.com/portainer/portainer/api/jwt"
 	"github.com/portainer/portainer/api/kubernetes"
 	kubecli "github.com/portainer/portainer/api/kubernetes/cli"
@@ -42,7 +47,9 @@ import (
 	"github.com/portainer/portainer/api/oauth"
 	"github.com/portainer/portainer/api/scheduler"
 	"github.com/portainer/portainer/api/stacks/deployments"
+	"github.com/portainer/portainer/pkg/libhelm"
 
+	"github.com/gofrs/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -98,8 +105,6 @@ func initDataStore(flags *portainer.CLIFlags, secretKey []byte, fileService port
 
 		log.Info().Msg("exiting rollback")
 		os.Exit(0)
-
-		return nil
 	}
 
 	// Init sets some defaults - it's basically a migration
@@ -109,24 +114,27 @@ func initDataStore(flags *portainer.CLIFlags, secretKey []byte, fileService port
 	}
 
 	if isNew {
-		// from MigrateData
-		store.VersionService.StoreDBVersion(portainer.DBVersion)
+		instanceId, err := uuid.NewV4()
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed generating instance id")
+		}
 
-		err := updateSettingsFromFlags(store, flags)
+		// from MigrateData
+		v := models.Version{
+			SchemaVersion: portainer.APIVersion,
+			Edition:       int(portainer.PortainerCE),
+			InstanceID:    instanceId.String(),
+		}
+		store.VersionService.UpdateVersion(&v)
+
+		err = updateSettingsFromFlags(store, flags)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed updating settings from flags")
 		}
 	} else {
-		storedVersion, err := store.VersionService.DBVersion()
+		err = store.MigrateData()
 		if err != nil {
-			log.Fatal().Err(err).Msg("failure during creation of new database")
-		}
-
-		if storedVersion != portainer.DBVersion {
-			err = store.MigrateData()
-			if err != nil {
-				log.Fatal().Err(err).Msg("failed migration")
-			}
+			log.Fatal().Err(err).Msg("failed migration")
 		}
 	}
 
@@ -139,22 +147,13 @@ func initDataStore(flags *portainer.CLIFlags, secretKey []byte, fileService port
 	go func() {
 		<-shutdownCtx.Done()
 		defer connection.Close()
-
-		exportFilename := path.Join(*flags.Data, fmt.Sprintf("export-%d.json", time.Now().Unix()))
-
-		err := store.Export(exportFilename)
-		if err != nil {
-			log.Error().Str("filename", exportFilename).Err(err).Msg("failed to export")
-		} else {
-			log.Debug().Str("filename", exportFilename).Msg("exported")
-		}
 	}()
 
 	return store
 }
 
-func initComposeStackManager(assetsPath string, configPath string, reverseTunnelService portainer.ReverseTunnelService, proxyManager *proxy.Manager) portainer.ComposeStackManager {
-	composeWrapper, err := exec.NewComposeStackManager(assetsPath, configPath, proxyManager)
+func initComposeStackManager(composeDeployer libstack.Deployer, reverseTunnelService portainer.ReverseTunnelService, proxyManager *proxy.Manager) portainer.ComposeStackManager {
+	composeWrapper, err := exec.NewComposeStackManager(composeDeployer, proxyManager)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed creating compose manager")
 	}
@@ -594,6 +593,8 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 
 	digitalSignatureService := initDigitalSignatureService()
 
+	edgeStacksService := edgestacks.NewService(dataStore)
+
 	sslService, err := initSSLService(*flags.AddrHTTPS, *flags.SSLCert, *flags.SSLKey, fileService, dataStore, shutdownTrigger)
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
@@ -633,7 +634,12 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 
 	dockerConfigPath := fileService.GetDockerConfigPath()
 
-	composeStackManager := initComposeStackManager(*flags.Assets, dockerConfigPath, reverseTunnelService, proxyManager)
+	composeDeployer, err := compose.NewComposeDeployer(*flags.Assets, dockerConfigPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed initializing compose deployer")
+	}
+
+	composeStackManager := initComposeStackManager(composeDeployer, reverseTunnelService, proxyManager)
 
 	swarmStackManager, err := initSwarmStackManager(*flags.Assets, dockerConfigPath, digitalSignatureService, fileService, reverseTunnelService, dataStore)
 	if err != nil {
@@ -719,6 +725,11 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 		log.Fatal().Msg("failed to fetch SSL settings from DB")
 	}
 
+	upgradeService, err := upgrade.NewService(*flags.Assets, composeDeployer)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed initializing upgrade service")
+	}
+
 	// FIXME: In 2.16 we changed the way ingress controller permissions are
 	// stored. Instead of being stored as annotation on an ingress rule, we keep
 	// them in our database. However, in order to run the migration we need an
@@ -733,7 +744,7 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 	// resolved we can remove this function.
 	err = kubernetesClientFactory.PostInitMigrateIngresses()
 	if err != nil {
-		log.Fatal().Err(err).Msg("failure during creation of new database")
+		log.Fatal().Err(err).Msg("failure during post init migrations")
 	}
 
 	return &http.Server{
@@ -745,6 +756,7 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 		HTTPEnabled:                 sslDBSettings.HTTPEnabled,
 		AssetsPath:                  *flags.Assets,
 		DataStore:                   dataStore,
+		EdgeStacksService:           edgeStacksService,
 		SwarmStackManager:           swarmStackManager,
 		ComposeStackManager:         composeStackManager,
 		KubernetesDeployer:          kubernetesDeployer,
@@ -770,10 +782,13 @@ func buildServer(flags *portainer.CLIFlags) portainer.Server {
 		ShutdownTrigger:             shutdownTrigger,
 		StackDeployer:               stackDeployer,
 		DemoService:                 demoService,
+		UpgradeService:              upgradeService,
 	}
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	configureLogger()
 	setLoggingMode("PRETTY")
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/portainer/portainer/api/database/models"
 	gittypes "github.com/portainer/portainer/api/git/types"
+	models "github.com/portainer/portainer/api/http/models/kubernetes"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -238,10 +238,14 @@ type (
 		Created        int64                              `json:"Created"`
 		CronExpression string                             `json:"CronExpression"`
 		Endpoints      map[EndpointID]EdgeJobEndpointMeta `json:"Endpoints"`
+		EdgeGroups     []EdgeGroupID                      `json:"EdgeGroups"`
 		Name           string                             `json:"Name"`
 		ScriptPath     string                             `json:"ScriptPath"`
 		Recurring      bool                               `json:"Recurring"`
 		Version        int                                `json:"Version"`
+
+		// Field used for log collection of Endpoints belonging to EdgeGroups
+		GroupLogsCollection map[EndpointID]EdgeJobEndpointMeta
 	}
 
 	// EdgeJobEndpointMeta represents a meta data object for an Edge job and Environment(Endpoint) relation
@@ -279,8 +283,11 @@ type (
 		ProjectPath    string                         `json:"ProjectPath"`
 		EntryPoint     string                         `json:"EntryPoint"`
 		Version        int                            `json:"Version"`
+		NumDeployments int                            `json:"NumDeployments"`
 		ManifestPath   string
 		DeploymentType EdgeStackDeploymentType
+		// Uses the manifest's namespaces instead of the default one
+		UseManifestNamespaces bool
 
 		// Deprecated
 		Prune bool `json:"Prune"`
@@ -291,11 +298,24 @@ type (
 	//EdgeStackID represents an edge stack id
 	EdgeStackID int
 
+	EdgeStackStatusDetails struct {
+		Pending             bool
+		Ok                  bool
+		Error               bool
+		Acknowledged        bool
+		Remove              bool
+		RemoteUpdateSuccess bool
+		ImagesPulled        bool
+	}
+
 	//EdgeStackStatus represents an edge stack status
 	EdgeStackStatus struct {
-		Type       EdgeStackStatusType `json:"Type"`
-		Error      string              `json:"Error"`
-		EndpointID EndpointID          `json:"EndpointID"`
+		Details    EdgeStackStatusDetails `json:"Details"`
+		Error      string                 `json:"Error"`
+		EndpointID EndpointID             `json:"EndpointID"`
+
+		// Deprecated
+		Type EdgeStackStatusType `json:"Type"`
 	}
 
 	//EdgeStackStatusType represents an edge stack status type
@@ -318,25 +338,25 @@ type (
 		PublicURL        string           `json:"PublicURL" example:"docker.mydomain.tld:2375"`
 		Gpus             []Pair           `json:"Gpus"`
 		TLSConfig        TLSConfiguration `json:"TLSConfig"`
-		AzureCredentials AzureCredentials `json:"AzureCredentials,omitempty" example:""`
+		AzureCredentials AzureCredentials `json:"AzureCredentials,omitempty"`
 		// List of tag identifiers to which this environment(endpoint) is associated
 		TagIDs []TagID `json:"TagIds"`
 		// The status of the environment(endpoint) (1 - up, 2 - down)
 		Status EndpointStatus `json:"Status" example:"1"`
 		// List of snapshots
-		Snapshots []DockerSnapshot `json:"Snapshots" example:""`
+		Snapshots []DockerSnapshot `json:"Snapshots"`
 		// List of user identifiers authorized to connect to this environment(endpoint)
 		UserAccessPolicies UserAccessPolicies `json:"UserAccessPolicies"`
 		// List of team identifiers authorized to connect to this environment(endpoint)
-		TeamAccessPolicies TeamAccessPolicies `json:"TeamAccessPolicies" example:""`
+		TeamAccessPolicies TeamAccessPolicies `json:"TeamAccessPolicies"`
 		// The identifier of the edge agent associated with this environment(endpoint)
-		EdgeID string `json:"EdgeID,omitempty" example:""`
+		EdgeID string `json:"EdgeID,omitempty"`
 		// The key which is used to map the agent to Portainer
-		EdgeKey string `json:"EdgeKey" example:""`
+		EdgeKey string `json:"EdgeKey"`
 		// The check in interval for edge agent (in seconds)
 		EdgeCheckinInterval int `json:"EdgeCheckinInterval" example:"5"`
 		// Associated Kubernetes data
-		Kubernetes KubernetesData `json:"Kubernetes" example:""`
+		Kubernetes KubernetesData `json:"Kubernetes"`
 		// Maximum version of docker-compose
 		ComposeSyntaxMaxVersion string `json:"ComposeSyntaxMaxVersion" example:"3.8"`
 		// Environment(Endpoint) specific security settings
@@ -396,8 +416,8 @@ type (
 		Name string `json:"Name" example:"my-environment-group"`
 		// Description associated to the environment(endpoint) group
 		Description        string             `json:"Description" example:"Environment(Endpoint) group description"`
-		UserAccessPolicies UserAccessPolicies `json:"UserAccessPolicies" example:""`
-		TeamAccessPolicies TeamAccessPolicies `json:"TeamAccessPolicies" example:""`
+		UserAccessPolicies UserAccessPolicies `json:"UserAccessPolicies"`
+		TeamAccessPolicies TeamAccessPolicies `json:"TeamAccessPolicies"`
 		// List of tags associated to this environment(endpoint) group
 		TagIDs []TagID `json:"TagIds"`
 
@@ -757,13 +777,13 @@ type (
 		// Type of Docker resource. Valid values are: 1- container, 2 -service
 		// 3 - volume, 4 - secret, 5 - stack, 6 - config or 7 - custom template
 		Type         ResourceControlType  `json:"Type" example:"1"`
-		UserAccesses []UserResourceAccess `json:"UserAccesses" example:""`
-		TeamAccesses []TeamResourceAccess `json:"TeamAccesses" example:""`
+		UserAccesses []UserResourceAccess `json:"UserAccesses"`
+		TeamAccesses []TeamResourceAccess `json:"TeamAccesses"`
 		// Permit access to the associated resource to any user
 		Public bool `json:"Public" example:"true"`
 		// Permit access to resource only to admins
 		AdministratorsOnly bool `json:"AdministratorsOnly" example:"true"`
-		System             bool `json:"System" example:""`
+		System             bool `json:"System"`
 
 		// Deprecated fields
 		// Deprecated in DBVersion == 2
@@ -845,20 +865,22 @@ type (
 		BlackListedLabels []Pair `json:"BlackListedLabels"`
 		// Active authentication method for the Portainer instance. Valid values are: 1 for internal, 2 for LDAP, or 3 for oauth
 		AuthenticationMethod AuthenticationMethod `json:"AuthenticationMethod" example:"1"`
-		InternalAuthSettings InternalAuthSettings `json:"InternalAuthSettings" example:""`
-		LDAPSettings         LDAPSettings         `json:"LDAPSettings" example:""`
-		OAuthSettings        OAuthSettings        `json:"OAuthSettings" example:""`
-		OpenAMTConfiguration OpenAMTConfiguration `json:"openAMTConfiguration" example:""`
-		FDOConfiguration     FDOConfiguration     `json:"fdoConfiguration" example:""`
-		FeatureFlagSettings  map[Feature]bool     `json:"FeatureFlagSettings" example:""`
+		InternalAuthSettings InternalAuthSettings `json:"InternalAuthSettings"`
+		LDAPSettings         LDAPSettings         `json:"LDAPSettings"`
+		OAuthSettings        OAuthSettings        `json:"OAuthSettings"`
+		OpenAMTConfiguration OpenAMTConfiguration `json:"openAMTConfiguration"`
+		FDOConfiguration     FDOConfiguration     `json:"fdoConfiguration"`
+		FeatureFlagSettings  map[Feature]bool     `json:"FeatureFlagSettings"`
 		// The interval in which environment(endpoint) snapshots are created
 		SnapshotInterval string `json:"SnapshotInterval" example:"5m"`
 		// URL to the templates that will be displayed in the UI when navigating to App Templates
 		TemplatesURL string `json:"TemplatesURL" example:"https://raw.githubusercontent.com/portainer/templates/master/templates.json"`
 		// The default check in interval for edge agent (in seconds)
 		EdgeAgentCheckinInterval int `json:"EdgeAgentCheckinInterval" example:"5"`
+		// Show the Kompose build option (discontinued in 2.18)
+		ShowKomposeBuildOption bool `json:"ShowKomposeBuildOption" example:"false"`
 		// Whether edge compute features are enabled
-		EnableEdgeComputeFeatures bool `json:"EnableEdgeComputeFeatures" example:""`
+		EnableEdgeComputeFeatures bool `json:"EnableEdgeComputeFeatures"`
 		// The duration of a user session
 		UserSessionTimeout string `json:"UserSessionTimeout" example:"5m"`
 		// The expiry of a Kubeconfig
@@ -933,9 +955,9 @@ type (
 		// Path to the Stack file
 		EntryPoint string `json:"EntryPoint" example:"docker-compose.yml"`
 		// A list of environment(endpoint) variables used during stack deployment
-		Env []Pair `json:"Env" example:""`
+		Env []Pair `json:"Env"`
 		//
-		ResourceControl *ResourceControl `json:"ResourceControl" example:""`
+		ResourceControl *ResourceControl `json:"ResourceControl"`
 		// Stack status (1 - active, 2 - inactive)
 		Status StackStatus `json:"Status" example:"1"`
 		// Path on disk to the repository hosting the Stack file
@@ -1100,7 +1122,7 @@ type (
 		// A list of ports exposed by the container
 		Ports []string `json:"ports,omitempty" example:"8080:80/tcp"`
 		// Container labels
-		Labels []Pair `json:"labels,omitempty" example:""`
+		Labels []Pair `json:"labels,omitempty"`
 		// Whether the container should be started in privileged mode
 		Privileged bool `json:"privileged,omitempty" example:"true"`
 		// Whether the container should be started in
@@ -1334,6 +1356,7 @@ type (
 		CopySSLCertPair(certPath, keyPath string) (string, string, error)
 		CopySSLCACert(caCertPath string) (string, error)
 		StoreFDOProfileFileFromBytes(fdoProfileIdentifier string, data []byte) (string, error)
+		StoreMTLSCertificates(cert, caCert, key []byte) (string, string, string, error)
 	}
 
 	// GitService represents a service for managing Git
@@ -1355,6 +1378,7 @@ type (
 	// KubeClient represents a service used to query a Kubernetes environment(endpoint)
 	KubeClient interface {
 		SetupUserServiceAccount(userID int, teamIDs []int, restrictDefaultNamespace bool) error
+		IsRBACEnabled() (bool, error)
 		GetServiceAccount(tokendata *TokenData) (*v1.ServiceAccount, error)
 		GetServiceAccountBearerToken(userID int) (string, error)
 		CreateUserShellPod(ctx context.Context, serviceAccountName, shellPodImage string) (*KubernetesShellPod, error)
@@ -1369,7 +1393,9 @@ type (
 		DeleteNamespace(namespace string) error
 		GetConfigMapsAndSecrets(namespace string) ([]models.K8sConfigMapOrSecret, error)
 		GetIngressControllers() (models.K8sIngressControllers, error)
-		CreateIngress(namespace string, info models.K8sIngressInfo) error
+		GetMetrics() (models.K8sMetrics, error)
+		GetStorage() ([]KubernetesStorageClassConfig, error)
+		CreateIngress(namespace string, info models.K8sIngressInfo, owner string) error
 		UpdateIngress(namespace string, info models.K8sIngressInfo) error
 		GetIngresses(namespace string) ([]models.K8sIngressInfo, error)
 		DeleteIngresses(reqs models.K8sIngressDeleteRequests) error
@@ -1425,6 +1451,7 @@ type (
 		GetActiveTunnel(endpoint *Endpoint) (TunnelDetails, error)
 		AddEdgeJob(endpointID EndpointID, edgeJob *EdgeJob)
 		RemoveEdgeJob(edgeJobID EdgeJobID)
+		RemoveEdgeJobFromEndpoint(endpointID EndpointID, edgeJobID EdgeJobID)
 	}
 
 	// Server defines the interface to serve the API
@@ -1452,9 +1479,9 @@ type (
 
 const (
 	// APIVersion is the version number of the Portainer API
-	APIVersion = "2.17.0"
-	// DBVersion is the version number of the Portainer database
-	DBVersion = 80
+	APIVersion = "2.18.0"
+	// Edition is what this edition of Portainer is called
+	Edition = PortainerCE
 	// ComposeSyntaxMaxVersion is a maximum supported version of the docker compose syntax
 	ComposeSyntaxMaxVersion = "3.9"
 	// AssetsServerURL represents the URL of the Portainer asset server
@@ -1498,12 +1525,8 @@ const (
 	WebSocketKeepAlive = 1 * time.Hour
 )
 
-const FeatureFlagEdgeRemoteUpdate Feature = "edgeRemoteUpdate"
-
 // List of supported features
-var SupportedFeatureFlags = []Feature{
-	FeatureFlagEdgeRemoteUpdate,
-}
+var SupportedFeatureFlags = []Feature{}
 
 const (
 	_ AuthenticationMethod = iota
@@ -1549,13 +1572,20 @@ const (
 )
 
 const (
-	_ EdgeStackStatusType = iota
-	//StatusOk represents a successfully deployed edge stack
-	StatusOk
-	//StatusError represents an edge environment(endpoint) which failed to deploy its edge stack
-	StatusError
-	//StatusAcknowledged represents an acknowledged edge stack
-	StatusAcknowledged
+	// EdgeStackStatusPending represents a pending edge stack
+	EdgeStackStatusPending EdgeStackStatusType = iota
+	//EdgeStackStatusOk represents a successfully deployed edge stack
+	EdgeStackStatusOk
+	//EdgeStackStatusError represents an edge environment(endpoint) which failed to deploy its edge stack
+	EdgeStackStatusError
+	//EdgeStackStatusAcknowledged represents an acknowledged edge stack
+	EdgeStackStatusAcknowledged
+	//EdgeStackStatusRemove represents a removed edge stack (status isn't persisted)
+	EdgeStackStatusRemove
+	// StatusRemoteUpdateSuccess represents a successfully updated edge stack
+	EdgeStackStatusRemoteUpdateSuccess
+	// EdgeStackStatusImagesPulled represents a successfully images-pulling
+	EdgeStackStatusImagesPulled
 )
 
 const (

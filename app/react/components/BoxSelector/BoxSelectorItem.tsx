@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 
-import { isLimitedToBE } from '@/portainer/feature-flags/feature-flags.service';
+import { isLimitedToBE } from '@/react/portainer/feature-flags/feature-flags.service';
 import { Icon } from '@/react/components/Icon';
 
 import './BoxSelectorItem.css';
@@ -54,7 +54,6 @@ export function BoxSelectorItem<T extends number | string>({
             {!!option.icon && (
               <Icon
                 icon={option.icon}
-                feather={option.featherIcon}
                 className="boxselector_icon !flex items-center"
               />
             )}

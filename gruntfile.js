@@ -26,8 +26,8 @@ module.exports = function (grunt) {
     root: 'dist',
     distdir: 'dist/public',
     binaries: {
-      dockerVersion: 'v20.10.9',
-      dockerComposePluginVersion: 'v2.10.2',
+      dockerVersion: 'v20.10.21',
+      dockerComposePluginVersion: 'v2.13.0',
       helmVersion: 'v3.9.3',
       komposeVersion: 'v1.22.0',
       kubectlVersion: 'v1.24.1',
@@ -208,7 +208,7 @@ function shell_download_docker_compose_binary(platform, arch) {
   var binaryVersion = '<%= binaries.dockerComposePluginVersion %>';
 
   return `
-    if [ -f dist/docker-compose.plugin ] || [ -f dist/docker-compose.plugin.exe ]; then
+    if [ -f dist/docker-compose ] || [ -f dist/docker-compose.exe ]; then
     echo "docker compose binary exists";
     else
       build/download_docker_compose_binary.sh ${platform} ${arch} ${binaryVersion};

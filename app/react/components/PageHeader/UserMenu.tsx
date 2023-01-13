@@ -6,10 +6,10 @@ import {
 } from '@reach/menu-button';
 import { UISrefProps, useSref } from '@uirouter/react';
 import clsx from 'clsx';
-import { User, ChevronDown } from 'react-feather';
+import { User, ChevronDown } from 'lucide-react';
 
 import { AutomationTestingProps } from '@/types';
-import { useUser } from '@/portainer/hooks/useUser';
+import { useUser } from '@/react/hooks/useUser';
 
 import styles from './HeaderTitle.module.css';
 
@@ -34,7 +34,7 @@ export function UserMenu() {
             'th-dark:text-gray-warm-7'
           )}
         >
-          <User className="feather" />
+          <User className="lucide" />
         </div>
         {user && <span>{user.Username}</span>}
         <ChevronDown className={styles.arrowDown} />
