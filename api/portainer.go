@@ -562,6 +562,12 @@ type (
 	KubernetesData struct {
 		Snapshots     []KubernetesSnapshot    `json:"Snapshots"`
 		Configuration KubernetesConfiguration `json:"Configuration"`
+		Flags         KubernetesFlags         `json:"Flags"`
+	}
+
+	KubernetesFlags struct {
+		IsServerMetricsDetected bool `json:"IsServerMetricsDetected"`
+		IsServerStorageDetected bool `json:"IsServerStorageDetected"`
 	}
 
 	// KubernetesSnapshot represents a snapshot of a specific Kubernetes environment(endpoint) at a specific time
@@ -1449,7 +1455,7 @@ type (
 		KeepTunnelAlive(endpointID EndpointID, ctx context.Context, maxKeepAlive time.Duration)
 		GetTunnelDetails(endpointID EndpointID) TunnelDetails
 		GetActiveTunnel(endpoint *Endpoint) (TunnelDetails, error)
-		AddEdgeJob(endpointID EndpointID, edgeJob *EdgeJob)
+		AddEdgeJob(endpoint *Endpoint, edgeJob *EdgeJob)
 		RemoveEdgeJob(edgeJobID EdgeJobID)
 		RemoveEdgeJobFromEndpoint(endpointID EndpointID, edgeJobID EdgeJobID)
 	}

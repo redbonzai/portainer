@@ -236,8 +236,8 @@ class KubernetesApplicationController {
   async redeployApplicationAsync() {
     const confirmed = await this.ModalService.confirmAsync({
       title: 'Are you sure?',
-      message: 'Terminating and restarting the application will cause service interruption. Do you wish to continue?',
-      buttons: { confirm: { label: 'Terminate and restart', className: 'btn-primary' } },
+      message: 'Redeploying the application may cause a service interruption. Do you wish to continue?',
+      buttons: { confirm: { label: 'Redeploy', className: 'btn-primary' } },
     });
     if (!confirmed) {
       return;
@@ -323,6 +323,9 @@ class KubernetesApplicationController {
         this.KubernetesNodeService.get(),
       ]);
       this.application = application;
+      if (this.application.StackId) {
+        this.stack = await this.StackService.stack(application.StackId);
+      }
       this.allContainers = KubernetesApplicationHelper.associateAllContainersAndApplication(application);
       this.formValues.Note = this.application.Note;
       this.formValues.Services = this.application.Services;
