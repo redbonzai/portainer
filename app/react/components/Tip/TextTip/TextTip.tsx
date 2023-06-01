@@ -1,26 +1,39 @@
 import { PropsWithChildren } from 'react';
 import { AlertCircle } from 'lucide-react';
+import clsx from 'clsx';
 
 import { Icon, IconMode } from '@@/Icon';
 
-type Color = 'orange' | 'blue';
+type Color = 'orange' | 'blue' | 'red' | 'green';
 
 export interface Props {
   icon?: React.ReactNode;
   color?: Color;
+  className?: string;
+  childrenWrapperClassName?: string;
+  inline?: boolean;
 }
 
 export function TextTip({
   color = 'orange',
   icon = AlertCircle,
+  inline = true,
+  className,
   children,
+  childrenWrapperClassName = 'text-muted',
 }: PropsWithChildren<Props>) {
   return (
-    <p className="small flex items-center gap-1">
-      <Icon icon={icon} mode={getMode(color)} />
+    <div
+      className={clsx(
+        className,
+        'small items-center gap-1',
+        inline ? 'inline-flex' : 'flex'
+      )}
+    >
+      <Icon icon={icon} mode={getMode(color)} className="!mt-[2px]" />
 
-      <span className="text-muted">{children}</span>
-    </p>
+      <span className={childrenWrapperClassName}>{children}</span>
+    </div>
   );
 }
 
@@ -28,6 +41,10 @@ function getMode(color: Color): IconMode {
   switch (color) {
     case 'blue':
       return 'primary';
+    case 'red':
+      return 'danger';
+    case 'green':
+      return 'success';
     case 'orange':
     default:
       return 'warning';

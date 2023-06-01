@@ -5,41 +5,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/portainer/portainer/api/datastore"
-
 	portainer "github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/datastore"
 	gittypes "github.com/portainer/portainer/api/git/types"
+	"github.com/portainer/portainer/api/internal/testhelpers"
+
 	"github.com/stretchr/testify/assert"
 )
 
-type gitService struct {
-	cloneErr error
-	id       string
-}
-
-func (g *gitService) CloneRepository(destination, repositoryURL, referenceName, username, password string) error {
-	return g.cloneErr
-}
-
-func (g *gitService) LatestCommitID(repositoryURL, referenceName, username, password string) (string, error) {
-	return g.id, nil
-}
-
-func (g *gitService) ListRefs(repositoryURL, username, password string, hardRefresh bool) ([]string, error) {
-	return nil, nil
-}
-
-func (g *gitService) ListFiles(repositoryURL, referenceName, username, password string, hardRefresh bool, includedExts []string) ([]string, error) {
-	return nil, nil
-}
-
 type noopDeployer struct{}
 
+// without unpacker
 func (s *noopDeployer) DeploySwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry, prune bool, pullImage bool) error {
 	return nil
 }
 
-func (s *noopDeployer) DeployComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry, forcePullImage bool, forceRereate bool) error {
+func (s *noopDeployer) DeployComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry, forcePullImage bool, forceRecreate bool) error {
 	return nil
 }
 
@@ -47,9 +28,34 @@ func (s *noopDeployer) DeployKubernetesStack(stack *portainer.Stack, endpoint *p
 	return nil
 }
 
+// with unpacker
+func (s *noopDeployer) DeployRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry, forcePullImage bool, forceRecreate bool) error {
+	return nil
+}
+func (s *noopDeployer) UndeployRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+func (s *noopDeployer) StartRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+func (s *noopDeployer) StopRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+func (s *noopDeployer) DeployRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry, prune bool, pullImage bool) error {
+	return nil
+}
+func (s *noopDeployer) UndeployRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+func (s *noopDeployer) StartRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+func (s *noopDeployer) StopRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+	return nil
+}
+
 func Test_redeployWhenChanged_FailsWhenCannotFindStack(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	err := RedeployWhenChanged(1, nil, store, nil)
 	assert.Error(t, err)
@@ -57,8 +63,7 @@ func Test_redeployWhenChanged_FailsWhenCannotFindStack(t *testing.T) {
 }
 
 func Test_redeployWhenChanged_DoesNothingWhenNotAGitBasedStack(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	admin := &portainer.User{ID: 1, Username: "admin"}
 	err := store.User().Create(admin)
@@ -67,19 +72,23 @@ func Test_redeployWhenChanged_DoesNothingWhenNotAGitBasedStack(t *testing.T) {
 	err = store.Stack().Create(&portainer.Stack{ID: 1, CreatedBy: "admin"})
 	assert.NoError(t, err, "failed to create a test stack")
 
-	err = RedeployWhenChanged(1, nil, store, &gitService{nil, ""})
+	err = RedeployWhenChanged(1, nil, store, testhelpers.NewGitService(nil, ""))
 	assert.NoError(t, err)
 }
 
 func Test_redeployWhenChanged_DoesNothingWhenNoGitChanges(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	tmpDir := t.TempDir()
 
 	admin := &portainer.User{ID: 1, Username: "admin"}
 	err := store.User().Create(admin)
 	assert.NoError(t, err, "error creating an admin")
+
+	err = store.Endpoint().Create(&portainer.Endpoint{
+		ID: 0,
+	})
+	assert.NoError(t, err, "error creating environment")
 
 	err = store.Stack().Create(&portainer.Stack{
 		ID:          1,
@@ -92,18 +101,22 @@ func Test_redeployWhenChanged_DoesNothingWhenNoGitChanges(t *testing.T) {
 		}})
 	assert.NoError(t, err, "failed to create a test stack")
 
-	err = RedeployWhenChanged(1, nil, store, &gitService{nil, "oldHash"})
+	err = RedeployWhenChanged(1, nil, store, testhelpers.NewGitService(nil, "oldHash"))
 	assert.NoError(t, err)
 }
 
 func Test_redeployWhenChanged_FailsWhenCannotClone(t *testing.T) {
 	cloneErr := errors.New("failed to clone")
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	admin := &portainer.User{ID: 1, Username: "admin"}
 	err := store.User().Create(admin)
 	assert.NoError(t, err, "error creating an admin")
+
+	err = store.Endpoint().Create(&portainer.Endpoint{
+		ID: 0,
+	})
+	assert.NoError(t, err, "error creating environment")
 
 	err = store.Stack().Create(&portainer.Stack{
 		ID:        1,
@@ -115,14 +128,13 @@ func Test_redeployWhenChanged_FailsWhenCannotClone(t *testing.T) {
 		}})
 	assert.NoError(t, err, "failed to create a test stack")
 
-	err = RedeployWhenChanged(1, nil, store, &gitService{cloneErr, "newHash"})
+	err = RedeployWhenChanged(1, nil, store, testhelpers.NewGitService(cloneErr, "newHash"))
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, cloneErr, "should failed to clone but didn't, check test setup")
 }
 
 func Test_redeployWhenChanged(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	tmpDir := t.TempDir()
 
@@ -142,7 +154,9 @@ func Test_redeployWhenChanged(t *testing.T) {
 			URL:           "url",
 			ReferenceName: "ref",
 			ConfigHash:    "oldHash",
-		}}
+		},
+	}
+
 	err = store.Stack().Create(&stack)
 	assert.NoError(t, err, "failed to create a test stack")
 
@@ -150,7 +164,7 @@ func Test_redeployWhenChanged(t *testing.T) {
 		stack.Type = portainer.DockerComposeStack
 		store.Stack().UpdateStack(stack.ID, &stack)
 
-		err = RedeployWhenChanged(1, &noopDeployer{}, store, &gitService{nil, "newHash"})
+		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)
 	})
 
@@ -158,7 +172,7 @@ func Test_redeployWhenChanged(t *testing.T) {
 		stack.Type = portainer.DockerSwarmStack
 		store.Stack().UpdateStack(stack.ID, &stack)
 
-		err = RedeployWhenChanged(1, &noopDeployer{}, store, &gitService{nil, "newHash"})
+		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)
 	})
 
@@ -166,14 +180,13 @@ func Test_redeployWhenChanged(t *testing.T) {
 		stack.Type = portainer.KubernetesStack
 		store.Stack().UpdateStack(stack.ID, &stack)
 
-		err = RedeployWhenChanged(1, &noopDeployer{}, store, &gitService{nil, "newHash"})
+		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)
 	})
 }
 
 func Test_getUserRegistries(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	endpointID := 123
 

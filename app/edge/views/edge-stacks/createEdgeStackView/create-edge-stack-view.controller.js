@@ -1,11 +1,14 @@
 import { EditorType } from '@/react/edge/edge-stacks/types';
-import { PortainerEndpointTypes } from '@/portainer/models/endpoint/models';
 import { getValidEditorTypes } from '@/react/edge/edge-stacks/utils';
+import { STACK_NAME_VALIDATION_REGEX } from '@/react/constants';
+import { confirmWebEditorDiscard } from '@@/modals/confirm';
+import { baseEdgeStackWebhookUrl } from '@/portainer/helpers/webhookHelper';
+import { EnvironmentType } from '@/react/portainer/environments/types';
 
 export default class CreateEdgeStackViewController {
   /* @ngInject */
-  constructor($state, $window, ModalService, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope) {
-    Object.assign(this, { $state, $window, ModalService, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope });
+  constructor($state, $window, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope) {
+    Object.assign(this, { $state, $window, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope });
 
     this.formValues = {
       Name: '',
@@ -21,9 +24,11 @@ export default class CreateEdgeStackViewController {
       Groups: [],
       DeploymentType: 0,
       UseManifestNamespaces: false,
+      TLSSkipVerify: false,
     };
 
     this.EditorType = EditorType;
+    this.EnvironmentType = EnvironmentType;
 
     this.state = {
       Method: 'editor',
@@ -33,9 +38,12 @@ export default class CreateEdgeStackViewController {
       isEditorDirty: false,
       hasKubeEndpoint: false,
       endpointTypes: [],
+      baseWebhookUrl: baseEdgeStackWebhookUrl(),
     };
 
     this.edgeGroups = null;
+
+    $scope.STACK_NAME_VALIDATION_REGEX = STACK_NAME_VALIDATION_REGEX;
 
     this.createStack = this.createStack.bind(this);
     this.validateForm = this.validateForm.bind(this);
@@ -44,8 +52,7 @@ export default class CreateEdgeStackViewController {
     this.createStackFromFileUpload = this.createStackFromFileUpload.bind(this);
     this.createStackFromGitRepository = this.createStackFromGitRepository.bind(this);
     this.onChangeGroups = this.onChangeGroups.bind(this);
-    this.hasDockerEndpoint = this.hasDockerEndpoint.bind(this);
-    this.hasKubeEndpoint = this.hasKubeEndpoint.bind(this);
+    this.hasType = this.hasType.bind(this);
     this.onChangeDeploymentType = this.onChangeDeploymentType.bind(this);
   }
 
@@ -75,14 +82,13 @@ export default class CreateEdgeStackViewController {
 
   uiCanExit() {
     if (this.state.Method === 'editor' && this.formValues.StackFileContent && this.state.isEditorDirty) {
-      return this.ModalService.confirmWebEditorDiscard();
+      return confirmWebEditorDiscard();
     }
   }
 
   async $onInit() {
     try {
       this.edgeGroups = await this.EdgeGroupService.groups();
-      this.noGroups = this.edgeGroups.length === 0;
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to retrieve Edge groups');
     }
@@ -135,9 +141,11 @@ export default class CreateEdgeStackViewController {
   }
 
   checkIfEndpointTypes(groups) {
-    const edgeGroups = groups.map((id) => this.edgeGroups.find((e) => e.Id === id));
-    this.state.endpointTypes = edgeGroups.flatMap((group) => group.EndpointTypes);
-    this.selectValidDeploymentType();
+    return this.$scope.$evalAsync(() => {
+      const edgeGroups = groups.map((id) => this.edgeGroups.find((e) => e.Id === id));
+      this.state.endpointTypes = edgeGroups.flatMap((group) => group.EndpointTypes);
+      this.selectValidDeploymentType();
+    });
   }
 
   selectValidDeploymentType() {
@@ -148,12 +156,8 @@ export default class CreateEdgeStackViewController {
     }
   }
 
-  hasKubeEndpoint() {
-    return this.state.endpointTypes.includes(PortainerEndpointTypes.EdgeAgentOnKubernetesEnvironment);
-  }
-
-  hasDockerEndpoint() {
-    return this.state.endpointTypes.includes(PortainerEndpointTypes.EdgeAgentOnDockerEnvironment);
+  hasType(envType) {
+    return this.state.endpointTypes.includes(envType);
   }
 
   validateForm(method) {
@@ -212,6 +216,7 @@ export default class CreateEdgeStackViewController {
       RepositoryAuthentication: this.formValues.RepositoryAuthentication,
       RepositoryUsername: this.formValues.RepositoryUsername,
       RepositoryPassword: this.formValues.RepositoryPassword,
+      TLSSkipVerify: this.formValues.TLSSkipVerify,
     };
     return this.EdgeStackService.createStackFromGitRepository(
       {

@@ -13,12 +13,12 @@ import (
 )
 
 func TestHandler_webhookInvoke(t *testing.T) {
-	_, store, teardown := datastore.MustNewTestStore(t, true, true)
-	defer teardown()
+	_, store := datastore.MustNewTestStore(t, true, true)
 
 	webhookID := newGuidString(t)
 	store.StackService.Create(&portainer.Stack{
-		AutoUpdate: &portainer.StackAutoUpdate{
+		ID: 1,
+		AutoUpdate: &portainer.AutoUpdateSettings{
 			Webhook: webhookID,
 		},
 	})
