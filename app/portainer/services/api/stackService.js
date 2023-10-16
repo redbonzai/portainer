@@ -1,6 +1,6 @@
 import _ from 'lodash-es';
 import { transformAutoUpdateViewModel } from '@/react/portainer/gitops/AutoUpdateFieldset/utils';
-import { StackViewModel, OrphanedStackViewModel } from '../../models/stack';
+import { StackViewModel } from '@/react/docker/stacks/view-models/stack';
 
 angular.module('portainer.app').factory('StackService', [
   '$q',
@@ -50,7 +50,7 @@ angular.module('portainer.app').factory('StackService', [
     service.migrateSwarmStack = function (stack, targetEndpointId, newName) {
       var deferred = $q.defer();
 
-      SwarmService.swarm()
+      SwarmService.swarm(targetEndpointId)
         .then(function success(data) {
           var swarm = data;
           if (swarm.Id === stack.SwarmId) {
@@ -126,10 +126,10 @@ angular.module('portainer.app').factory('StackService', [
       return deferred.promise;
     };
 
-    service.externalComposeStacks = function () {
+    service.externalComposeStacks = function (environmentId) {
       var deferred = $q.defer();
 
-      ContainerService.containers(1)
+      ContainerService.containers(environmentId, 1)
         .then(function success(containers) {
           deferred.resolve(StackHelper.getExternalStacksFromContainers(containers));
         })
@@ -160,15 +160,11 @@ angular.module('portainer.app').factory('StackService', [
 
       $q.all({
         stacks: Stack.query({ filters: filters }).$promise,
-        externalStacks: includeExternalStacks ? service.externalComposeStacks() : [],
+        externalStacks: includeExternalStacks ? service.externalComposeStacks(endpointId) : [],
       })
         .then(function success(data) {
           var stacks = data.stacks.map(function (item) {
-            if (item.EndpointId == endpointId) {
-              return new StackViewModel(item);
-            } else {
-              return new OrphanedStackViewModel(item);
-            }
+            return new StackViewModel(item, item.EndpointId != endpointId);
           });
 
           var externalStacks = data.externalStacks;
@@ -197,11 +193,7 @@ angular.module('portainer.app').factory('StackService', [
         })
         .then(function success(data) {
           var stacks = data.stacks.map(function (item) {
-            if (item.EndpointId == endpointId) {
-              return new StackViewModel(item);
-            } else {
-              return new OrphanedStackViewModel(item);
-            }
+            return new StackViewModel(item, item.EndpointId != endpointId);
           });
 
           var externalStacks = data.externalStacks;
@@ -324,7 +316,7 @@ angular.module('portainer.app').factory('StackService', [
     service.createSwarmStackFromFileContent = function (name, stackFileContent, env, endpointId) {
       var deferred = $q.defer();
 
-      SwarmService.swarm()
+      SwarmService.swarm(endpointId)
         .then(function success(swarm) {
           var payload = {
             Name: name,
@@ -421,13 +413,13 @@ angular.module('portainer.app').factory('StackService', [
     };
 
     service.start = start;
-    function start(id) {
-      return Stack.start({ id }).$promise;
+    function start(endpointId, id) {
+      return Stack.start({ id, endpointId }).$promise;
     }
 
     service.stop = stop;
-    function stop(id) {
-      return Stack.stop({ id }).$promise;
+    function stop(endpointId, id) {
+      return Stack.stop({ endpointId, id }).$promise;
     }
 
     function updateGit(id, endpointId, env, prune, gitConfig, pullImage) {

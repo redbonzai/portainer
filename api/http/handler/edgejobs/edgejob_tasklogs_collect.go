@@ -3,14 +3,14 @@ package edgejobs
 import (
 	"errors"
 	"net/http"
+	"slices"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/internal/edge"
-	"github.com/portainer/portainer/api/internal/slices"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 )
 
 // @id EdgeJobTasksCollect
@@ -39,7 +39,7 @@ func (handler *Handler) edgeJobTasksCollect(w http.ResponseWriter, r *http.Reque
 	}
 
 	err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
-		edgeJob, err := tx.EdgeJob().EdgeJob(portainer.EdgeJobID(edgeJobID))
+		edgeJob, err := tx.EdgeJob().Read(portainer.EdgeJobID(edgeJobID))
 		if tx.IsErrObjectNotFound(err) {
 			return httperror.NotFound("Unable to find an Edge job with the specified identifier inside the database", err)
 		} else if err != nil {
@@ -64,7 +64,7 @@ func (handler *Handler) edgeJobTasksCollect(w http.ResponseWriter, r *http.Reque
 			edgeJob.Endpoints[endpointID] = meta
 		}
 
-		err = tx.EdgeJob().UpdateEdgeJob(edgeJob.ID, edgeJob)
+		err = tx.EdgeJob().Update(edgeJob.ID, edgeJob)
 		if err != nil {
 			return httperror.InternalServerError("Unable to persist Edge job changes in the database", err)
 		}

@@ -5,14 +5,14 @@ import (
 	"strconv"
 	"time"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	httperrors "github.com/portainer/portainer/api/http/errors"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/stacks/deployments"
 	"github.com/portainer/portainer/api/stacks/stackutils"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/pkg/errors"
@@ -77,7 +77,7 @@ func (handler *Handler) stackUpdate(w http.ResponseWriter, r *http.Request) *htt
 		return httperror.BadRequest("Invalid stack identifier route variable", err)
 	}
 
-	stack, err := handler.DataStore.Stack().Stack(portainer.StackID(stackID))
+	stack, err := handler.DataStore.Stack().Read(portainer.StackID(stackID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
 		return httperror.NotFound("Unable to find a stack with the specified identifier inside the database", err)
 	} else if err != nil {
@@ -143,7 +143,7 @@ func (handler *Handler) stackUpdate(w http.ResponseWriter, r *http.Request) *htt
 		return updateError
 	}
 
-	user, err := handler.DataStore.User().User(securityContext.UserID)
+	user, err := handler.DataStore.User().Read(securityContext.UserID)
 	if err != nil {
 		return httperror.BadRequest("Cannot find context user", errors.Wrap(err, "failed to fetch the user"))
 	}
@@ -151,7 +151,7 @@ func (handler *Handler) stackUpdate(w http.ResponseWriter, r *http.Request) *htt
 	stack.UpdateDate = time.Now().Unix()
 	stack.Status = portainer.StackStatusActive
 
-	err = handler.DataStore.Stack().UpdateStack(stack.ID, stack)
+	err = handler.DataStore.Stack().Update(stack.ID, stack)
 	if err != nil {
 		return httperror.InternalServerError("Unable to persist the stack changes inside the database", err)
 	}
@@ -197,6 +197,11 @@ func (handler *Handler) updateComposeStack(r *http.Request, stack *portainer.Sta
 	}
 
 	stack.Env = payload.Env
+
+	if stack.GitConfig != nil {
+		// detach from git
+		stack.GitConfig = nil
+	}
 
 	stackFolder := strconv.Itoa(int(stack.ID))
 	_, err = handler.FileService.UpdateStoreStackFileFromBytes(stackFolder, stack.EntryPoint, []byte(payload.StackFileContent))
@@ -262,6 +267,11 @@ func (handler *Handler) updateSwarmStack(r *http.Request, stack *portainer.Stack
 	}
 
 	stack.Env = payload.Env
+
+	if stack.GitConfig != nil {
+		// detach from git
+		stack.GitConfig = nil
+	}
 
 	stackFolder := strconv.Itoa(int(stack.ID))
 	_, err = handler.FileService.UpdateStoreStackFileFromBytes(stackFolder, stack.EntryPoint, []byte(payload.StackFileContent))

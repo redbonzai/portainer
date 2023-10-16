@@ -22,6 +22,9 @@ angular
           component: 'edgeGroupsView',
         },
       },
+      data: {
+        docs: '/user/edge/groups',
+      },
     };
 
     const groupsNew = {
@@ -52,6 +55,9 @@ angular
           component: 'edgeStacksView',
         },
       },
+      data: {
+        docs: '/user/edge/stacks',
+      },
     };
 
     const stacksNew = {
@@ -66,14 +72,16 @@ angular
 
     const stacksEdit = {
       name: 'edge.stacks.edit',
-      url: '/:stackId',
+      url: '/:stackId?tab&status',
       views: {
         'content@': {
           component: 'editEdgeStackView',
         },
       },
       params: {
-        tab: 0,
+        status: {
+          dynamic: true,
+        },
       },
     };
 
@@ -84,6 +92,9 @@ angular
         'content@': {
           component: 'edgeJobsView',
         },
+      },
+      data: {
+        docs: '/user/edge/jobs',
       },
     };
 
@@ -124,6 +135,9 @@ angular
           'content@': {
             component: 'waitingRoomView',
           },
+        },
+        data: {
+          docs: '/user/edge/devices',
         },
       });
     }

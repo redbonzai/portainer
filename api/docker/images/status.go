@@ -2,17 +2,17 @@ package images
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
-	"github.com/opencontainers/go-digest"
-	"github.com/patrickmn/go-cache"
 	portainer "github.com/portainer/portainer/api"
 	consts "github.com/portainer/portainer/api/docker/consts"
-	"github.com/portainer/portainer/api/internal/slices"
 
+	"github.com/opencontainers/go-digest"
+	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
@@ -40,6 +40,7 @@ func (c *DigestClient) ContainersImageStatus(ctx context.Context, containers []t
 	cli, err := c.clientFactory.CreateClient(endpoint, "", nil)
 	if err != nil {
 		log.Error().Err(err).Msg("cannot create docker client")
+
 		return Error
 	}
 

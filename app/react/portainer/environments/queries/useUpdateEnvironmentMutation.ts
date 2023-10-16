@@ -1,26 +1,31 @@
-import { useMutation, useQueryClient } from 'react-query';
+import { useQueryClient, useMutation } from 'react-query';
 
+import { withError, withInvalidate } from '@/react-tools/react-query';
+import {
+  EnvironmentId,
+  EnvironmentStatusMessage,
+  Environment,
+  KubernetesSettings,
+  DeploymentOptions,
+  EndpointChangeWindow,
+} from '@/react/portainer/environments/types';
 import axios, { parseAxiosError } from '@/portainer/services/axios';
 import { TagId } from '@/portainer/tags/types';
-import { withError } from '@/react-tools/react-query';
 
 import { EnvironmentGroupId } from '../environment-groups/types';
 import { buildUrl } from '../environment.service/utils';
-import { EnvironmentId, Environment } from '../types';
 
-import { queryKeys } from './query-keys';
+import { environmentQueryKeys } from './query-keys';
 
 export function useUpdateEnvironmentMutation() {
   const queryClient = useQueryClient();
   return useMutation(updateEnvironment, {
-    onSuccess(data, { id }) {
-      queryClient.invalidateQueries(queryKeys.item(id));
-    },
+    ...withInvalidate(queryClient, [environmentQueryKeys.base()]),
     ...withError('Unable to update environment'),
   });
 }
 
-export interface UpdatePayload {
+export interface UpdateEnvironmentPayload extends Partial<Environment> {
   TLSCACert?: File;
   TLSCert?: File;
   TLSKey?: File;
@@ -38,14 +43,20 @@ export interface UpdatePayload {
   AzureApplicationID: string;
   AzureTenantID: string;
   AzureAuthenticationKey: string;
+
+  IsSetStatusMessage: boolean;
+  StatusMessage: EnvironmentStatusMessage;
+  Kubernetes?: KubernetesSettings;
+  DeploymentOptions?: DeploymentOptions | null;
+  ChangeWindow?: EndpointChangeWindow;
 }
 
-async function updateEnvironment({
+export async function updateEnvironment({
   id,
   payload,
 }: {
   id: EnvironmentId;
-  payload: Partial<UpdatePayload>;
+  payload: Partial<UpdateEnvironmentPayload>;
 }) {
   try {
     await uploadTLSFilesForEndpoint(

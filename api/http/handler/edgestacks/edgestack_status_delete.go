@@ -3,14 +3,14 @@ package edgestacks
 import (
 	"errors"
 	"net/http"
+	"time"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/http/middlewares"
-	"github.com/portainer/portainer/pkg/featureflags"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 )
 
 // @id EdgeStackStatusDelete
@@ -25,6 +25,7 @@ import (
 // @failure 400
 // @failure 404
 // @failure 403
+// @deprecated
 // @router /edge_stacks/{id}/status/{environmentId} [delete]
 func (handler *Handler) edgeStackStatusDelete(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	stackID, err := request.RetrieveNumericRouteVariableValue(r, "id")
@@ -43,14 +44,10 @@ func (handler *Handler) edgeStackStatusDelete(w http.ResponseWriter, r *http.Req
 	}
 
 	var stack *portainer.EdgeStack
-	if featureflags.IsEnabled(portainer.FeatureNoTx) {
-		stack, err = handler.deleteEdgeStackStatus(handler.DataStore, portainer.EdgeStackID(stackID), endpoint)
-	} else {
-		err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
-			stack, err = handler.deleteEdgeStackStatus(tx, portainer.EdgeStackID(stackID), endpoint)
-			return err
-		})
-	}
+	err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
+		stack, err = handler.deleteEdgeStackStatus(tx, portainer.EdgeStackID(stackID), endpoint)
+		return err
+	})
 	if err != nil {
 		var httpErr *httperror.HandlerError
 		if errors.As(err, &httpErr) {
@@ -69,7 +66,17 @@ func (handler *Handler) deleteEdgeStackStatus(tx dataservices.DataStoreTx, stack
 		return nil, handler.handlerDBErr(err, "Unable to find a stack with the specified identifier inside the database")
 	}
 
-	delete(stack.Status, endpoint.ID)
+	environmentStatus, ok := stack.Status[endpoint.ID]
+	if !ok {
+		environmentStatus = portainer.EdgeStackStatus{}
+	}
+
+	environmentStatus.Status = append(environmentStatus.Status, portainer.EdgeStackDeploymentStatus{
+		Time: time.Now().Unix(),
+		Type: portainer.EdgeStackStatusRemoved,
+	})
+
+	stack.Status[endpoint.ID] = environmentStatus
 
 	err = tx.EdgeStack().UpdateEdgeStack(stack.ID, stack)
 	if err != nil {

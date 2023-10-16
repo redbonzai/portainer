@@ -9,6 +9,10 @@ import { CreateAccessToken } from '@/react/portainer/account/CreateAccessTokenVi
 import { EdgeComputeSettingsView } from '@/react/portainer/settings/EdgeComputeView/EdgeComputeSettingsView';
 import { withI18nSuspense } from '@/react-tools/withI18nSuspense';
 import { EdgeAutoCreateScriptView } from '@/react/portainer/environments/EdgeAutoCreateScriptView';
+import { ListView as EnvironmentsListView } from '@/react/portainer/environments/ListView';
+import { BackupSettingsPanel } from '@/react/portainer/settings/SettingsView/BackupSettingsView/BackupSettingsPanel';
+import { SettingsView } from '@/react/portainer/settings/SettingsView/SettingsView';
+import { CreateHelmRepositoriesView } from '@/react/portainer/account/helm-repositories/CreateHelmRepositoryView';
 
 import { wizardModule } from './wizard';
 import { teamsModule } from './teams';
@@ -43,5 +47,24 @@ export const viewsModule = angular
     r2a(
       withUIRouter(withReactQuery(withCurrentUser(EdgeComputeSettingsView))),
       ['onSubmit', 'settings']
+    )
+  )
+  .component(
+    'environmentsListView',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(EnvironmentsListView))), [])
+  )
+  .component(
+    'backupSettingsPanel',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(BackupSettingsPanel))), [])
+  )
+  .component(
+    'settingsView',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(SettingsView))), [])
+  )
+  .component(
+    'createHelmRepositoryView',
+    r2a(
+      withUIRouter(withReactQuery(withCurrentUser(CreateHelmRepositoriesView))),
+      []
     )
   ).name;

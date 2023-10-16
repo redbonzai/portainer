@@ -5,10 +5,11 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
-	httperror "github.com/portainer/libhttp/error"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
+	"github.com/portainer/portainer/api/http/middlewares"
 	"github.com/portainer/portainer/api/http/security"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
 )
 
 // Handler is the HTTP handler used to handle environment(endpoint) group operations.
@@ -21,7 +22,7 @@ type Handler struct {
 }
 
 // NewHandler creates a handler to manage environment(endpoint) group operations.
-func NewHandler(bouncer *security.RequestBouncer, dataStore dataservices.DataStore, fileService portainer.FileService, gitService portainer.GitService) *Handler {
+func NewHandler(bouncer security.BouncerService, dataStore dataservices.DataStore, fileService portainer.FileService, gitService portainer.GitService) *Handler {
 	h := &Handler{
 		Router:         mux.NewRouter(),
 		DataStore:      dataStore,
@@ -32,6 +33,7 @@ func NewHandler(bouncer *security.RequestBouncer, dataStore dataservices.DataSto
 
 	h.Handle("/custom_templates/create/{method}",
 		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.customTemplateCreate))).Methods(http.MethodPost)
+	h.Handle("/custom_templates", middlewares.Deprecated(h, deprecatedCustomTemplateCreateUrlParser)).Methods(http.MethodPost) // Deprecated
 	h.Handle("/custom_templates",
 		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.customTemplateList))).Methods(http.MethodGet)
 	h.Handle("/custom_templates/{id}",

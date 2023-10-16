@@ -3,21 +3,23 @@ package customtemplates
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 
-	"github.com/asaskevich/govalidator"
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/filesystem"
 	gittypes "github.com/portainer/portainer/api/git/types"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/authorization"
 	"github.com/portainer/portainer/api/stacks/stackutils"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
+
+	"github.com/asaskevich/govalidator"
 	"github.com/rs/zerolog/log"
 )
 
@@ -39,7 +41,7 @@ func (handler *Handler) customTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 	customTemplate.CreatedByUserID = tokenData.ID
 
-	customTemplates, err := handler.DataStore.CustomTemplate().CustomTemplates()
+	customTemplates, err := handler.DataStore.CustomTemplate().ReadAll()
 	if err != nil {
 		return httperror.InternalServerError("Unable to retrieve custom templates from the database", err)
 	}
@@ -471,4 +473,30 @@ func (handler *Handler) createCustomTemplateFromFileUpload(r *http.Request) (*po
 	customTemplate.ProjectPath = projectPath
 
 	return customTemplate, nil
+}
+
+// @id CustomTemplateCreate
+// @summary Create a custom template
+// @description Create a custom template.
+// @description **Access policy**: authenticated
+// @tags custom_templates
+// @security ApiKeyAuth
+// @security jwt
+// @accept json,multipart/form-data
+// @produce json
+// @param method query string true "method for creating template" Enums(string, file, repository)
+// @param body body object true "for body documentation see the relevant /custom_templates/{method} endpoint"
+// @success 200 {object} portainer.CustomTemplate
+// @failure 400 "Invalid request"
+// @failure 500 "Server error"
+// @deprecated
+// @router /custom_templates [post]
+func deprecatedCustomTemplateCreateUrlParser(w http.ResponseWriter, r *http.Request) (string, *httperror.HandlerError) {
+	method, err := request.RetrieveQueryParameter(r, "method", false)
+	if err != nil {
+		return "", httperror.BadRequest("Invalid query parameter: method", err)
+	}
+
+	url := fmt.Sprintf("/custom_templates/create/%s", method)
+	return url, nil
 }

@@ -3,11 +3,12 @@ package teams
 import (
 	"net/http"
 
-	"github.com/pkg/errors"
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
+
+	"github.com/pkg/errors"
 )
 
 // @id TeamDelete
@@ -30,14 +31,14 @@ func (handler *Handler) teamDelete(w http.ResponseWriter, r *http.Request) *http
 		return httperror.BadRequest("Invalid team identifier route variable", err)
 	}
 
-	_, err = handler.DataStore.Team().Team(portainer.TeamID(teamID))
+	_, err = handler.DataStore.Team().Read(portainer.TeamID(teamID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
 		return httperror.NotFound("Unable to find a team with the specified identifier inside the database", err)
 	} else if err != nil {
 		return httperror.InternalServerError("Unable to find a team with the specified identifier inside the database", err)
 	}
 
-	err = handler.DataStore.Team().DeleteTeam(portainer.TeamID(teamID))
+	err = handler.DataStore.Team().Delete(portainer.TeamID(teamID))
 	if err != nil {
 		return httperror.InternalServerError("Unable to delete the team from the database", err)
 	}

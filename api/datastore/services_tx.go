@@ -16,6 +16,8 @@ func (tx *StoreTx) IsErrObjectNotFound(err error) bool {
 
 func (tx *StoreTx) CustomTemplate() dataservices.CustomTemplateService { return nil }
 
+func (tx *StoreTx) PendingActions() dataservices.PendingActionsService { return nil }
+
 func (tx *StoreTx) EdgeGroup() dataservices.EdgeGroupService {
 	return tx.store.EdgeGroupService.Tx(tx.tx)
 }
@@ -78,6 +80,10 @@ func (tx *StoreTx) TeamMembership() dataservices.TeamMembershipService {
 
 func (tx *StoreTx) Team() dataservices.TeamService                 { return nil }
 func (tx *StoreTx) TunnelServer() dataservices.TunnelServerService { return nil }
-func (tx *StoreTx) User() dataservices.UserService                 { return nil }
-func (tx *StoreTx) Version() dataservices.VersionService           { return nil }
-func (tx *StoreTx) Webhook() dataservices.WebhookService           { return nil }
+
+func (tx *StoreTx) User() dataservices.UserService {
+	return tx.store.UserService.Tx(tx.tx)
+}
+
+func (tx *StoreTx) Version() dataservices.VersionService { return nil }
+func (tx *StoreTx) Webhook() dataservices.WebhookService { return nil }

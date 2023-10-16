@@ -27,11 +27,14 @@ import { appRevisionAnnotation } from './constants';
 
 export async function getApplicationsForCluster(
   environmentId: EnvironmentId,
-  namespaces: string[]
+  namespaceNames?: string[]
 ) {
   try {
+    if (!namespaceNames) {
+      return [];
+    }
     const applications = await Promise.all(
-      namespaces.map((namespace) =>
+      namespaceNames.map((namespace) =>
         getApplicationsForNamespace(environmentId, namespace)
       )
     );
@@ -74,17 +77,20 @@ async function getApplicationsForNamespace(
   } catch (e) {
     throw parseAxiosError(
       e as Error,
-      `Unable to retrieve applications in namespace ${namespace}`
+      `Unable to retrieve applications in namespace '${namespace}'`
     );
   }
 }
 
 // if not known, get the type of an application (Deployment, DaemonSet, StatefulSet or naked pod) by name
-export async function getApplication(
+export async function getApplication<
+  T extends Application | string = Application,
+>(
   environmentId: EnvironmentId,
   namespace: string,
   name: string,
-  appKind?: AppKind
+  appKind?: AppKind,
+  yaml?: boolean
 ) {
   try {
     // if resourceType is known, get the application by type and name
@@ -93,14 +99,15 @@ export async function getApplication(
         case 'Deployment':
         case 'DaemonSet':
         case 'StatefulSet':
-          return await getApplicationByKind(
+          return await getApplicationByKind<T>(
             environmentId,
             namespace,
             appKind,
-            name
+            name,
+            yaml
           );
         case 'Pod':
-          return await getPod(environmentId, namespace, name);
+          return await getPod(environmentId, namespace, name, yaml);
         default:
           throw new Error('Unknown resource type');
       }
@@ -112,21 +119,24 @@ export async function getApplication(
         environmentId,
         namespace,
         'Deployment',
-        name
+        name,
+        yaml
       ),
       getApplicationByKind<DaemonSet>(
         environmentId,
         namespace,
         'DaemonSet',
-        name
+        name,
+        yaml
       ),
       getApplicationByKind<StatefulSet>(
         environmentId,
         namespace,
         'StatefulSet',
-        name
+        name,
+        yaml
       ),
-      getPod(environmentId, namespace, name),
+      getPod(environmentId, namespace, name, yaml),
     ]);
 
     if (isFulfilled(deployment)) {
@@ -145,7 +155,7 @@ export async function getApplication(
   } catch (e) {
     throw parseAxiosError(
       e as Error,
-      `Unable to retrieve application ${name} in namespace ${namespace}`
+      `Unable to retrieve application ${name} in namespace '${namespace}'`
     );
   }
 }
@@ -193,7 +203,7 @@ export async function patchApplication(
   } catch (e) {
     throw parseAxiosError(
       e as Error,
-      `Unable to patch application ${name} in namespace ${namespace}`
+      `Unable to patch application ${name} in namespace '${namespace}'`
     );
   }
 }
@@ -222,15 +232,21 @@ async function patchApplicationByKind<T extends Application>(
   }
 }
 
-async function getApplicationByKind<T extends Application>(
+async function getApplicationByKind<
+  T extends Application | string = Application,
+>(
   environmentId: EnvironmentId,
   namespace: string,
   appKind: 'Deployment' | 'DaemonSet' | 'StatefulSet',
-  name: string
+  name: string,
+  yaml?: boolean
 ) {
   try {
     const { data } = await axios.get<T>(
-      buildUrl(environmentId, namespace, `${appKind}s`, name)
+      buildUrl(environmentId, namespace, `${appKind}s`, name),
+      {
+        headers: { Accept: yaml ? 'application/yaml' : 'application/json' },
+      }
     );
     return data;
   } catch (e) {

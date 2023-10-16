@@ -35,7 +35,7 @@ func (s *noopDeployer) DeployRemoteComposeStack(stack *portainer.Stack, endpoint
 func (s *noopDeployer) UndeployRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
 	return nil
 }
-func (s *noopDeployer) StartRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+func (s *noopDeployer) StartRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry) error {
 	return nil
 }
 func (s *noopDeployer) StopRemoteComposeStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
@@ -47,7 +47,7 @@ func (s *noopDeployer) DeployRemoteSwarmStack(stack *portainer.Stack, endpoint *
 func (s *noopDeployer) UndeployRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
 	return nil
 }
-func (s *noopDeployer) StartRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+func (s *noopDeployer) StartRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint, registries []portainer.Registry) error {
 	return nil
 }
 func (s *noopDeployer) StopRemoteSwarmStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
@@ -162,7 +162,7 @@ func Test_redeployWhenChanged(t *testing.T) {
 
 	t.Run("can deploy docker compose stack", func(t *testing.T) {
 		stack.Type = portainer.DockerComposeStack
-		store.Stack().UpdateStack(stack.ID, &stack)
+		store.Stack().Update(stack.ID, &stack)
 
 		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)
@@ -170,7 +170,7 @@ func Test_redeployWhenChanged(t *testing.T) {
 
 	t.Run("can deploy docker swarm stack", func(t *testing.T) {
 		stack.Type = portainer.DockerSwarmStack
-		store.Stack().UpdateStack(stack.ID, &stack)
+		store.Stack().Update(stack.ID, &stack)
 
 		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)
@@ -178,7 +178,7 @@ func Test_redeployWhenChanged(t *testing.T) {
 
 	t.Run("can deploy kube app", func(t *testing.T) {
 		stack.Type = portainer.KubernetesStack
-		store.Stack().UpdateStack(stack.ID, &stack)
+		store.Stack().Update(stack.ID, &stack)
 
 		err = RedeployWhenChanged(1, &noopDeployer{}, store, testhelpers.NewGitService(nil, "newHash"))
 		assert.NoError(t, err)

@@ -4,13 +4,12 @@ import (
 	"errors"
 	"net/http"
 
+	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/internal/registryutils/access"
-
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
-	portainer "github.com/portainer/portainer/api"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 )
 
 type webhookUpdatePayload struct {
@@ -48,7 +47,7 @@ func (handler *Handler) webhookUpdate(w http.ResponseWriter, r *http.Request) *h
 		return httperror.BadRequest("Invalid request payload", err)
 	}
 
-	webhook, err := handler.DataStore.Webhook().Webhook(webhookID)
+	webhook, err := handler.DataStore.Webhook().Read(webhookID)
 	if handler.DataStore.IsErrObjectNotFound(err) {
 		return httperror.NotFound("Unable to find a webhooks with the specified identifier inside the database", err)
 	} else if err != nil {
@@ -78,7 +77,7 @@ func (handler *Handler) webhookUpdate(w http.ResponseWriter, r *http.Request) *h
 
 	webhook.RegistryID = payload.RegistryID
 
-	err = handler.DataStore.Webhook().UpdateWebhook(portainer.WebhookID(id), webhook)
+	err = handler.DataStore.Webhook().Update(portainer.WebhookID(id), webhook)
 	if err != nil {
 		return httperror.InternalServerError("Unable to persist the webhook inside the database", err)
 	}

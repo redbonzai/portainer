@@ -11,10 +11,9 @@ import (
 	"github.com/portainer/portainer/api/http/security"
 	"github.com/portainer/portainer/api/stacks/deployments"
 	"github.com/portainer/portainer/api/stacks/stackutils"
-
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 )
 
 // @id StackStart
@@ -43,7 +42,7 @@ func (handler *Handler) stackStart(w http.ResponseWriter, r *http.Request) *http
 		return httperror.InternalServerError("Unable to retrieve info from request context", err)
 	}
 
-	stack, err := handler.DataStore.Stack().Stack(portainer.StackID(stackID))
+	stack, err := handler.DataStore.Stack().Read(portainer.StackID(stackID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
 		return httperror.NotFound("Unable to find a stack with the specified identifier inside the database", err)
 	} else if err != nil {
@@ -86,7 +85,7 @@ func (handler *Handler) stackStart(w http.ResponseWriter, r *http.Request) *http
 	}
 	if !isUnique {
 		errorMessage := fmt.Sprintf("A stack with the name '%s' is already running", stack.Name)
-		return &httperror.HandlerError{StatusCode: http.StatusConflict, Message: errorMessage, Err: errors.New(errorMessage)}
+		return httperror.Conflict(errorMessage, errors.New(errorMessage))
 	}
 
 	resourceControl, err := handler.DataStore.ResourceControl().ResourceControlByResourceIDAndType(stackutils.ResourceControlID(stack.EndpointID, stack.Name), portainer.StackResourceControl)
@@ -117,13 +116,13 @@ func (handler *Handler) stackStart(w http.ResponseWriter, r *http.Request) *http
 		stack.AutoUpdate.JobID = jobID
 	}
 
-	err = handler.startStack(stack, endpoint)
+	err = handler.startStack(stack, endpoint, securityContext)
 	if err != nil {
 		return httperror.InternalServerError("Unable to start stack", err)
 	}
 
 	stack.Status = portainer.StackStatusActive
-	err = handler.DataStore.Stack().UpdateStack(stack.ID, stack)
+	err = handler.DataStore.Stack().Update(stack.ID, stack)
 	if err != nil {
 		return httperror.InternalServerError("Unable to update stack status", err)
 	}
@@ -136,24 +135,40 @@ func (handler *Handler) stackStart(w http.ResponseWriter, r *http.Request) *http
 	return response.JSON(w, stack)
 }
 
-func (handler *Handler) startStack(stack *portainer.Stack, endpoint *portainer.Endpoint) error {
+func (handler *Handler) startStack(
+	stack *portainer.Stack,
+	endpoint *portainer.Endpoint,
+	securityContext *security.RestrictedRequestContext,
+) error {
+	user, err := handler.DataStore.User().Read(securityContext.UserID)
+	if err != nil {
+		return fmt.Errorf("unable to load user information from the database: %w", err)
+	}
+
+	registries, err := handler.DataStore.Registry().ReadAll()
+	if err != nil {
+		return fmt.Errorf("unable to retrieve registries from the database: %w", err)
+	}
+
+	filteredRegistries := security.FilterRegistries(registries, user, securityContext.UserMemberships, endpoint.ID)
+
 	switch stack.Type {
 	case portainer.DockerComposeStack:
 		stack.Name = handler.ComposeStackManager.NormalizeStackName(stack.Name)
 
-		if stackutils.IsGitStack(stack) {
-			return handler.StackDeployer.StartRemoteComposeStack(stack, endpoint)
+		if stackutils.IsRelativePathStack(stack) {
+			return handler.StackDeployer.StartRemoteComposeStack(stack, endpoint, filteredRegistries)
 		}
 
 		return handler.ComposeStackManager.Up(context.TODO(), stack, endpoint, false)
 	case portainer.DockerSwarmStack:
 		stack.Name = handler.SwarmStackManager.NormalizeStackName(stack.Name)
 
-		if stackutils.IsGitStack(stack) {
-			return handler.StackDeployer.StartRemoteSwarmStack(stack, endpoint)
+		if stackutils.IsRelativePathStack(stack) {
+			return handler.StackDeployer.StartRemoteSwarmStack(stack, endpoint, filteredRegistries)
 		}
 
-		return handler.SwarmStackManager.Deploy(stack, true, true, endpoint)
+		return handler.StackDeployer.DeploySwarmStack(stack, endpoint, filteredRegistries, true, true)
 	}
 
 	return nil

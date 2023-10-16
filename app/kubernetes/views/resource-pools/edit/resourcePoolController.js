@@ -13,9 +13,10 @@ import { KubernetesIngressClassTypes } from 'Kubernetes/ingress/constants';
 import KubernetesResourceQuotaConverter from 'Kubernetes/converters/resourceQuota';
 import KubernetesNamespaceHelper from 'Kubernetes/helpers/namespaceHelper';
 import { FeatureId } from '@/react/portainer/feature-flags/enums';
-import { updateIngressControllerClassMap, getIngressControllerClassMap } from '@/react/kubernetes/cluster/ingressClass/utils';
+import { updateIngressControllerClassMap, getIngressControllerClassMap } from '@/react/kubernetes/cluster/ingressClass/useIngressControllerClassMap';
 import { confirmUpdate } from '@@/modals/confirm';
 import { confirmUpdateNamespace } from '@/react/kubernetes/namespaces/ItemView/ConfirmUpdateNamespace';
+import { getMetricsForAllPods } from '@/react/kubernetes/services/service.ts';
 
 class KubernetesResourcePoolController {
   /* #region  CONSTRUCTOR */
@@ -28,8 +29,6 @@ class KubernetesResourcePoolController {
     Notifications,
     LocalStorage,
     EndpointService,
-    KubernetesNodeService,
-    KubernetesMetricsService,
     KubernetesResourceQuotaService,
     KubernetesResourcePoolService,
     KubernetesEventService,
@@ -37,7 +36,8 @@ class KubernetesResourcePoolController {
     KubernetesApplicationService,
     KubernetesIngressService,
     KubernetesVolumeService,
-    KubernetesNamespaceService
+    KubernetesNamespaceService,
+    KubernetesNodeService
   ) {
     Object.assign(this, {
       $async,
@@ -47,8 +47,6 @@ class KubernetesResourcePoolController {
       Notifications,
       LocalStorage,
       EndpointService,
-      KubernetesNodeService,
-      KubernetesMetricsService,
       KubernetesResourceQuotaService,
       KubernetesResourcePoolService,
       KubernetesEventService,
@@ -57,12 +55,15 @@ class KubernetesResourcePoolController {
       KubernetesIngressService,
       KubernetesVolumeService,
       KubernetesNamespaceService,
+      KubernetesNodeService,
     });
 
     this.IngressClassTypes = KubernetesIngressClassTypes;
     this.ResourceQuotaDefaults = KubernetesResourceQuotaDefaults;
+    this.EndpointService = EndpointService;
 
     this.LBQuotaFeatureId = FeatureId.K8S_RESOURCE_POOL_LB_QUOTA;
+    this.StorageQuotaFeatureId = FeatureId.K8S_RESOURCE_POOL_STORAGE_QUOTA;
     this.StorageQuotaFeatureId = FeatureId.K8S_RESOURCE_POOL_STORAGE_QUOTA;
 
     this.updateResourcePoolAsync = this.updateResourcePoolAsync.bind(this);
@@ -322,7 +323,7 @@ class KubernetesResourcePoolController {
 
   async getResourceUsage(namespace) {
     try {
-      const namespaceMetrics = await this.KubernetesMetricsService.getPods(namespace);
+      const namespaceMetrics = await getMetricsForAllPods(this.$state.params.endpointId, namespace);
       // extract resource usage of all containers within each pod of the namespace
       const containerResourceUsageList = namespaceMetrics.items.flatMap((i) => i.containers.map((c) => c.usage));
       const namespaceResourceUsage = containerResourceUsageList.reduce((total, u) => {
@@ -340,6 +341,7 @@ class KubernetesResourcePoolController {
   $onInit() {
     return this.$async(async () => {
       try {
+        this.endpoint = await this.EndpointService.endpoint(this.endpoint.Id);
         this.isAdmin = this.Authentication.isAdmin();
 
         this.state = {
@@ -374,6 +376,7 @@ class KubernetesResourcePoolController {
         this.ingressControllers = [];
         if (this.state.ingressAvailabilityPerNamespace) {
           this.ingressControllers = await getIngressControllerClassMap({ environmentId: this.endpoint.Id, namespace: name });
+          this.initialIngressControllers = structuredClone(this.ingressControllers);
         }
 
         this.pool = _.find(pools, { Namespace: { Name: name } });

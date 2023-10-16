@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"strconv"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	httperrors "github.com/portainer/portainer/api/http/errors"
 	"github.com/portainer/portainer/api/http/security"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 )
 
 type registryConfigurePayload struct {
@@ -118,7 +118,7 @@ func (handler *Handler) registryConfigure(w http.ResponseWriter, r *http.Request
 		return httperror.BadRequest("Invalid registry identifier route variable", err)
 	}
 
-	registry, err := handler.DataStore.Registry().Registry(portainer.RegistryID(registryID))
+	registry, err := handler.DataStore.Registry().Read(portainer.RegistryID(registryID))
 	if handler.DataStore.IsErrObjectNotFound(err) {
 		return httperror.NotFound("Unable to find a registry with the specified identifier inside the database", err)
 	} else if err != nil {
@@ -172,7 +172,7 @@ func (handler *Handler) registryConfigure(w http.ResponseWriter, r *http.Request
 	registry.ManagementConfiguration = syncConfig(registry)
 	registry.ManagementConfiguration.TLSConfig = tlsConfig
 
-	err = handler.DataStore.Registry().UpdateRegistry(registry.ID, registry)
+	err = handler.DataStore.Registry().Update(registry.ID, registry)
 	if err != nil {
 		return httperror.InternalServerError("Unable to persist registry changes inside the database", err)
 	}

@@ -3,13 +3,18 @@ import { useRouter } from '@uirouter/react';
 
 import { AuthFieldset } from '@/react/portainer/gitops/AuthFieldset';
 import { AutoUpdateFieldset } from '@/react/portainer/gitops/AutoUpdateFieldset';
+import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
 import {
   parseAutoUpdateResponse,
   transformAutoUpdateViewModel,
 } from '@/react/portainer/gitops/AutoUpdateFieldset/utils';
 import { InfoPanel } from '@/react/portainer/gitops/InfoPanel';
 import { RefField } from '@/react/portainer/gitops/RefField';
-import { AutoUpdateModel, GitAuthModel } from '@/react/portainer/gitops/types';
+import {
+  AutoUpdateModel,
+  GitAuthModel,
+  RelativePathModel,
+} from '@/react/portainer/gitops/types';
 import {
   baseEdgeStackWebhookUrl,
   createWebhookId,
@@ -26,16 +31,26 @@ import { useCurrentUser } from '@/react/hooks/useUser';
 import { useCreateGitCredentialMutation } from '@/react/portainer/account/git-credentials/git-credentials.service';
 import { notifyError, notifySuccess } from '@/portainer/services/notifications';
 import { EnvironmentType } from '@/react/portainer/environments/types';
+import { Registry } from '@/react/portainer/registries/types';
+import { useRegistries } from '@/react/portainer/registries/queries/useRegistries';
+import { RelativePathFieldset } from '@/react/portainer/gitops/RelativePathFieldset/RelativePathFieldset';
+import { parseRelativePathResponse } from '@/react/portainer/gitops/RelativePathFieldset/utils';
 
 import { LoadingButton } from '@@/buttons';
 import { FormSection } from '@@/form-components/FormSection';
 import { TextTip } from '@@/Tip/TextTip';
 import { FormError } from '@@/form-components/FormError';
+import { EnvironmentVariablesPanel } from '@@/form-components/EnvironmentVariablesFieldset';
+import { EnvVar } from '@@/form-components/EnvironmentVariablesFieldset/types';
 
 import { useValidateEnvironmentTypes } from '../useEdgeGroupHasType';
 import { atLeastTwo } from '../atLeastTwo';
+import { PrivateRegistryFieldset } from '../../../components/PrivateRegistryFieldset';
 
-import { useUpdateEdgeStackGitMutation } from './useUpdateEdgeStackGitMutation';
+import {
+  UpdateEdgeStackGitPayload,
+  useUpdateEdgeStackGitMutation,
+} from './useUpdateEdgeStackGitMutation';
 
 interface FormValues {
   groupIds: EdgeGroup['Id'][];
@@ -43,6 +58,9 @@ interface FormValues {
   autoUpdate: AutoUpdateModel;
   refName: string;
   authentication: GitAuthModel;
+  envVars: EnvVar[];
+  privateRegistryId?: Registry['Id'];
+  relativePath: RelativePathModel;
 }
 
 export function GitForm({ stack }: { stack: EdgeStack }) {
@@ -63,6 +81,8 @@ export function GitForm({ stack }: { stack: EdgeStack }) {
     autoUpdate: parseAutoUpdateResponse(stack.AutoUpdate),
     refName: stack.GitConfig.ReferenceName,
     authentication: parseAuthResponse(stack.GitConfig.Authentication),
+    relativePath: parseRelativePathResponse(stack),
+    envVars: stack.EnvVars || [],
   };
 
   const webhookId = stack.AutoUpdate?.Webhook || createWebhookId();
@@ -113,10 +133,10 @@ export function GitForm({ stack }: { stack: EdgeStack }) {
   }
 
   function getPayload(
-    { authentication, autoUpdate, ...values }: FormValues,
+    { authentication, autoUpdate, privateRegistryId, ...values }: FormValues,
     credentialId: number | undefined,
     updateVersion: boolean
-  ) {
+  ): UpdateEdgeStackGitPayload {
     return {
       updateVersion,
       id: stack.Id,
@@ -125,6 +145,10 @@ export function GitForm({ stack }: { stack: EdgeStack }) {
         RepositoryGitCredentialID: credentialId,
       }),
       autoUpdate: transformAutoUpdateViewModel(autoUpdate, webhookId),
+      registries:
+        typeof privateRegistryId !== 'undefined'
+          ? [privateRegistryId]
+          : undefined,
       ...values,
     };
   }
@@ -169,6 +193,7 @@ function InnerForm({
   onUpdateSettingsClick(): void;
   webhookId: string;
 }) {
+  const registriesQuery = useRegistries();
   const { values, setFieldValue, isValid, handleSubmit, errors, dirty } =
     useFormikContext<FormValues>();
 
@@ -253,11 +278,28 @@ function InnerForm({
           }
           errors={errors.authentication}
         />
+
+        {isBE && <RelativePathFieldset value={values.relativePath} readonly />}
+
+        <EnvironmentVariablesPanel
+          onChange={(value) => setFieldValue('envVars', value)}
+          values={values.envVars}
+          errors={errors.envVars}
+        />
       </FormSection>
+
+      <PrivateRegistryFieldset
+        value={values.privateRegistryId}
+        onSelect={(value) => setFieldValue('privateRegistryId', value)}
+        registries={registriesQuery.data ?? []}
+        formInvalid={!isValid}
+        method="repository"
+        errorMessage={errors.privateRegistryId}
+      />
 
       <FormSection title="Actions">
         <LoadingButton
-          disabled={!dirty || !isValid || isLoading}
+          disabled={dirty || !isValid || isLoading}
           isLoading={isUpdateVersion && isLoading}
           loadingText="updating stack..."
         >

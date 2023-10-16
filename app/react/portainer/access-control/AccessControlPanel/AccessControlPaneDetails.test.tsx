@@ -4,6 +4,7 @@ import { createMockTeams, createMockUsers } from '@/react-tools/test-mocks';
 import { renderWithQueryClient } from '@/react-tools/test-utils';
 import { rest, server } from '@/setup-tests/server';
 import { Role } from '@/portainer/users/types';
+import { withUserProvider } from '@/react/test-utils/withUserProvider';
 
 import {
   ResourceControlOwnership,
@@ -82,7 +83,7 @@ for (let i = 0; i < inheritanceTests.length; i += 1) {
   });
 }
 
-test('when resource is limited to specific users, show comma separated list of their names', async () => {
+test('when resource is limited to specific users, show number of users', async () => {
   const users = createMockUsers(10, Role.Standard);
 
   server.use(rest.get('/api/users', (req, res, ctx) => res(ctx.json(users))));
@@ -106,7 +107,7 @@ test('when resource is limited to specific users, show comma separated list of t
   expect(queryByText(/Authorized users/)).toBeVisible();
 
   await expect(findByLabelText('authorized-users')).resolves.toHaveTextContent(
-    restrictedToUsers.map((user) => user.Username).join(', ')
+    `${restrictedToUsers.length} users`
   );
 });
 
@@ -143,11 +144,9 @@ async function renderComponent(
   resourceType: ResourceControlType = ResourceControlType.Container,
   resourceControl?: ResourceControlViewModel
 ) {
+  const WithUser = withUserProvider(AccessControlPanelDetails);
   const queries = renderWithQueryClient(
-    <AccessControlPanelDetails
-      resourceControl={resourceControl}
-      resourceType={resourceType}
-    />
+    <WithUser resourceControl={resourceControl} resourceType={resourceType} />
   );
   await expect(queries.findByText('Ownership')).resolves.toBeVisible();
 

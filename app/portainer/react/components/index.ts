@@ -6,6 +6,9 @@ import { withReactQuery } from '@/react-tools/withReactQuery';
 import { withUIRouter } from '@/react-tools/withUIRouter';
 import { AnnotationsBeTeaser } from '@/react/kubernetes/annotations/AnnotationsBeTeaser';
 import { withFormValidation } from '@/react-tools/withFormValidation';
+import { GroupAssociationTable } from '@/react/portainer/environments/environment-groups/components/GroupAssociationTable';
+import { AssociatedEnvironmentsSelector } from '@/react/portainer/environments/environment-groups/components/AssociatedEnvironmentsSelector';
+import { HelmRepositoryDatatable } from '@/react/portainer/account/AccountView/HelmRepositoryDatatable';
 
 import {
   EnvironmentVariablesFieldset,
@@ -69,7 +72,6 @@ export const ngModule = angular
       'message',
       'buttonText',
       'className',
-      'icon',
       'buttonClassName',
     ])
   )
@@ -80,7 +82,7 @@ export const ngModule = angular
 
   .component(
     'portainerTooltip',
-    r2a(Tooltip, ['message', 'position', 'className', 'setHtmlMessage'])
+    r2a(Tooltip, ['message', 'position', 'className', 'setHtmlMessage', 'size'])
   )
   .component('badge', r2a(Badge, ['type', 'className']))
   .component('fileUploadField', fileUploadField)
@@ -118,8 +120,11 @@ export const ngModule = angular
     'fallbackImage',
     r2a(FallbackImage, ['src', 'fallbackIcon', 'alt', 'size', 'className'])
   )
-  .component('prIcon', r2a(Icon, ['className', 'icon', 'mode', 'size']))
-  .component('reactQueryDevTools', r2a(ReactQueryDevtoolsWrapper, []))
+  .component('prIcon', r2a(Icon, ['className', 'icon', 'mode', 'size', 'spin']))
+  .component(
+    'reactQueryDevTools',
+    r2a(withReactQuery(ReactQueryDevtoolsWrapper), [])
+  )
   .component(
     'dashboardItem',
     r2a(DashboardItem, [
@@ -127,11 +132,13 @@ export const ngModule = angular
       'type',
       'value',
       'to',
+      'params',
       'children',
       'pluralType',
       'isLoading',
       'isRefetching',
       'dataCy',
+      'iconClass',
     ])
   )
   .component(
@@ -145,7 +152,7 @@ export const ngModule = angular
       'className',
     ])
   )
-  .component('badgeIcon', r2a(BadgeIcon, ['icon', 'size']))
+  .component('badgeIcon', r2a(BadgeIcon, ['icon', 'size', 'iconClass']))
   .component(
     'teamsSelector',
     r2a(TeamsSelector, [
@@ -174,6 +181,7 @@ export const ngModule = angular
       'isMulti',
       'isClearable',
       'components',
+      'isLoading',
     ])
   )
   .component(
@@ -203,7 +211,28 @@ export const ngModule = angular
       'height',
     ])
   )
-  .component('annotationsBeTeaser', r2a(AnnotationsBeTeaser, []));
+  .component(
+    'groupAssociationTable',
+    r2a(withReactQuery(GroupAssociationTable), [
+      'emptyContentLabel',
+      'onClickRow',
+      'query',
+      'title',
+      'data-cy',
+    ])
+  )
+  .component('annotationsBeTeaser', r2a(AnnotationsBeTeaser, []))
+  .component(
+    'associatedEndpointsSelector',
+    r2a(withReactQuery(AssociatedEnvironmentsSelector), ['onChange', 'value'])
+  )
+  .component(
+    'helmRepositoryDatatable',
+    r2a(
+      withUIRouter(withReactQuery(withCurrentUser(HelmRepositoryDatatable))),
+      []
+    )
+  );
 
 export const componentsModule = ngModule.name;
 
@@ -219,6 +248,6 @@ withFormValidation(
   ngModule,
   EnvironmentVariablesPanel,
   'environmentVariablesPanel',
-  ['explanation', 'showHelpMessage'],
+  ['explanation', 'showHelpMessage', 'isFoldable'],
   envVarValidation
 );

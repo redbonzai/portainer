@@ -2,20 +2,17 @@ package edgestacks
 
 import (
 	"net/http"
-	"strconv"
+	"time"
 
-	"github.com/pkg/errors"
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
-	"github.com/portainer/libhttp/response"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
-	"github.com/portainer/portainer/api/filesystem"
 	"github.com/portainer/portainer/api/internal/edge"
 	"github.com/portainer/portainer/api/internal/set"
-	"github.com/portainer/portainer/pkg/featureflags"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
+	"github.com/portainer/portainer/pkg/libhttp/response"
 
-	"github.com/rs/zerolog/log"
+	"github.com/pkg/errors"
 )
 
 type updateEdgeStackPayload struct {
@@ -67,15 +64,10 @@ func (handler *Handler) edgeStackUpdate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var stack *portainer.EdgeStack
-	if featureflags.IsEnabled(portainer.FeatureNoTx) {
-		stack, err = handler.updateEdgeStack(handler.DataStore, portainer.EdgeStackID(stackID), payload)
-	} else {
-		err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
-			stack, err = handler.updateEdgeStack(tx, portainer.EdgeStackID(stackID), payload)
-			return err
-		})
-	}
-
+	err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
+		stack, err = handler.updateEdgeStack(tx, portainer.EdgeStackID(stackID), payload)
+		return err
+	})
 	if err != nil {
 		var httpErr *httperror.HandlerError
 		if errors.As(err, &httpErr) {
@@ -116,24 +108,6 @@ func (handler *Handler) updateEdgeStack(tx dataservices.DataStoreTx, stackID por
 
 	}
 
-	entryPoint := stack.EntryPoint
-	manifestPath := stack.ManifestPath
-	deploymentType := stack.DeploymentType
-
-	if deploymentType != payload.DeploymentType {
-		// deployment type was changed - need to delete the old file
-		err = handler.FileService.RemoveDirectory(stack.ProjectPath)
-		if err != nil {
-			log.Warn().Err(err).Msg("Unable to clear old files")
-		}
-
-		entryPoint = ""
-		manifestPath = ""
-		deploymentType = payload.DeploymentType
-	}
-
-	stackFolder := strconv.Itoa(int(stack.ID))
-
 	hasWrongType, err := hasWrongEnvironmentType(tx.Endpoint(), relatedEndpointIds, payload.DeploymentType)
 	if err != nil {
 		return nil, httperror.BadRequest("unable to check for existence of non fitting environments: %w", err)
@@ -142,50 +116,20 @@ func (handler *Handler) updateEdgeStack(tx dataservices.DataStoreTx, stackID por
 		return nil, httperror.BadRequest("edge stack with config do not match the environment type", nil)
 	}
 
-	if payload.DeploymentType == portainer.EdgeStackDeploymentCompose {
-		if entryPoint == "" {
-			entryPoint = filesystem.ComposeFileDefaultName
-		}
+	stack.NumDeployments = len(relatedEndpointIds)
 
-		_, err := handler.FileService.StoreEdgeStackFileFromBytes(stackFolder, entryPoint, []byte(payload.StackFileContent))
+	stack.UseManifestNamespaces = payload.UseManifestNamespaces
+
+	stack.EdgeGroups = groupsIds
+
+	if payload.UpdateVersion {
+		err := handler.updateStackVersion(stack, payload.DeploymentType, []byte(payload.StackFileContent), "", relatedEndpointIds)
 		if err != nil {
-			return nil, httperror.InternalServerError("Unable to persist updated Compose file on disk", err)
-		}
-
-		tempManifestPath, err := handler.convertAndStoreKubeManifestIfNeeded(stackFolder, stack.ProjectPath, entryPoint, relatedEndpointIds)
-		if err != nil {
-			return nil, httperror.InternalServerError("Unable to convert and persist updated Kubernetes manifest file on disk", err)
-		}
-
-		manifestPath = tempManifestPath
-	}
-
-	if deploymentType == portainer.EdgeStackDeploymentKubernetes {
-		if manifestPath == "" {
-			manifestPath = filesystem.ManifestFileDefaultName
-		}
-
-		_, err = handler.FileService.StoreEdgeStackFileFromBytes(stackFolder, manifestPath, []byte(payload.StackFileContent))
-		if err != nil {
-			return nil, httperror.InternalServerError("Unable to persist updated Kubernetes manifest file on disk", err)
+			return nil, httperror.InternalServerError("Unable to update stack version", err)
 		}
 	}
 
-	err = tx.EdgeStack().UpdateEdgeStackFunc(stack.ID, func(edgeStack *portainer.EdgeStack) {
-		edgeStack.NumDeployments = len(relatedEndpointIds)
-		if payload.UpdateVersion {
-			edgeStack.Status = make(map[portainer.EndpointID]portainer.EdgeStackStatus)
-			edgeStack.Version++
-		}
-
-		edgeStack.UseManifestNamespaces = payload.UseManifestNamespaces
-
-		edgeStack.DeploymentType = deploymentType
-		edgeStack.EntryPoint = entryPoint
-		edgeStack.ManifestPath = manifestPath
-
-		edgeStack.EdgeGroups = groupsIds
-	})
+	err = tx.EdgeStack().UpdateEdgeStack(stack.ID, stack)
 	if err != nil {
 		return nil, httperror.InternalServerError("Unable to persist the stack changes inside the database", err)
 	}
@@ -245,4 +189,27 @@ func (handler *Handler) handleChangeEdgeGroups(tx dataservices.DataStoreTx, edge
 	}
 
 	return newRelatedEnvironmentIDs, endpointsToAdd, nil
+}
+
+func newStatus(oldStatus map[portainer.EndpointID]portainer.EdgeStackStatus, relatedEnvironmentIds []portainer.EndpointID) map[portainer.EndpointID]portainer.EdgeStackStatus {
+	newStatus := make(map[portainer.EndpointID]portainer.EdgeStackStatus)
+	for _, endpointID := range relatedEnvironmentIds {
+		newEnvStatus := portainer.EdgeStackStatus{}
+
+		oldEnvStatus, ok := oldStatus[endpointID]
+		if ok {
+			newEnvStatus = oldEnvStatus
+		}
+
+		newEnvStatus.Status = []portainer.EdgeStackDeploymentStatus{
+			{
+				Time: time.Now().Unix(),
+				Type: portainer.EdgeStackStatusPending,
+			},
+		}
+
+		newStatus[endpointID] = newEnvStatus
+	}
+
+	return newStatus
 }

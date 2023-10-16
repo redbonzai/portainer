@@ -7,7 +7,7 @@ import { KubernetesDeployManifestTypes, KubernetesDeployBuildMethods, Kubernetes
 import { renderTemplate } from '@/react/portainer/custom-templates/components/utils';
 import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
 import { kubernetes } from '@@/BoxSelector/common-options/deployment-methods';
-import { editor, git, customTemplate, url } from '@@/BoxSelector/common-options/build-methods';
+import { editor, git, customTemplate, url, helm } from '@@/BoxSelector/common-options/build-methods';
 import { parseAutoUpdateResponse, transformAutoUpdateViewModel } from '@/react/portainer/gitops/AutoUpdateFieldset/utils';
 import { baseStackWebhookUrl, createWebhookId } from '@/portainer/helpers/webhookHelper';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
@@ -32,11 +32,17 @@ class KubernetesDeployController {
       { ...git, value: KubernetesDeployBuildMethods.GIT },
       { ...editor, value: KubernetesDeployBuildMethods.WEB_EDITOR },
       { ...url, value: KubernetesDeployBuildMethods.URL },
-      { ...customTemplate, value: KubernetesDeployBuildMethods.CUSTOM_TEMPLATE },
+      { ...customTemplate, description: 'Use custom template', value: KubernetesDeployBuildMethods.CUSTOM_TEMPLATE },
+      { ...helm, value: KubernetesDeployBuildMethods.HELM },
     ];
 
+    let buildMethod = Number(this.$state.params.buildMethod) || KubernetesDeployBuildMethods.GIT;
+    if (buildMethod > Object.keys(KubernetesDeployBuildMethods).length) {
+      buildMethod = KubernetesDeployBuildMethods.GIT;
+    }
+
     this.state = {
-      DeployType: KubernetesDeployManifestTypes.KUBERNETES,
+      DeployType: buildMethod,
       BuildMethod: KubernetesDeployBuildMethods.GIT,
       tabLogsDisabled: true,
       activeTab: 0,
@@ -48,6 +54,7 @@ class KubernetesDeployController {
       webhookId: createWebhookId(),
       templateLoadFailed: false,
       isEditorReadOnly: false,
+      selectedHelmChart: '',
     };
 
     this.currentUser = {
@@ -72,6 +79,7 @@ class KubernetesDeployController {
     this.ManifestDeployTypes = KubernetesDeployManifestTypes;
     this.BuildMethods = KubernetesDeployBuildMethods;
 
+    this.onSelectHelmChart = this.onSelectHelmChart.bind(this);
     this.onChangeTemplateId = this.onChangeTemplateId.bind(this);
     this.deployAsync = this.deployAsync.bind(this);
     this.onChangeFileContent = this.onChangeFileContent.bind(this);
@@ -81,6 +89,10 @@ class KubernetesDeployController {
     this.onChangeMethod = this.onChangeMethod.bind(this);
     this.onChangeDeployType = this.onChangeDeployType.bind(this);
     this.onChangeTemplateVariables = this.onChangeTemplateVariables.bind(this);
+  }
+
+  onSelectHelmChart(chart) {
+    this.state.selectedHelmChart = chart;
   }
 
   onChangeTemplateVariables(value) {
@@ -283,6 +295,11 @@ class KubernetesDeployController {
 
       this.Notifications.success('Success', 'Request to deploy manifest successfully submitted');
       this.state.isEditorDirty = false;
+
+      if (this.$state.params.referrer && this.$state.params.tab) {
+        this.$state.go(this.$state.params.referrer, { tab: this.$state.params.tab });
+        return;
+      }
 
       if (this.$state.params.referrer) {
         this.$state.go(this.$state.params.referrer);

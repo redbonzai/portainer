@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/filesystem"
 	"github.com/portainer/portainer/api/git/update"
@@ -13,6 +11,8 @@ import (
 	"github.com/portainer/portainer/api/stacks/deployments"
 	"github.com/portainer/portainer/api/stacks/stackbuilders"
 	"github.com/portainer/portainer/api/stacks/stackutils"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/pkg/errors"
@@ -61,13 +61,13 @@ func (handler *Handler) checkAndCleanStackDupFromSwarm(w http.ResponseWriter, r 
 		deployments.StopAutoupdate(stack.ID, stack.AutoUpdate.JobID, handler.Scheduler)
 	}
 
-	err = handler.DataStore.Stack().DeleteStack(stack.ID)
+	err = handler.DataStore.Stack().Delete(stack.ID)
 	if err != nil {
 		return err
 	}
 
 	if resourceControl != nil {
-		err = handler.DataStore.ResourceControl().DeleteResourceControl(resourceControl.ID)
+		err = handler.DataStore.ResourceControl().Delete(resourceControl.ID)
 		if err != nil {
 			log.Error().
 				Str("stack", fmt.Sprintf("%+v", stack)).
@@ -171,7 +171,7 @@ type composeStackFromGitRepositoryPayload struct {
 	ComposeFile string `example:"docker-compose.yml" default:"docker-compose.yml"`
 	// Applicable when deploying with multiple stack files
 	AdditionalFiles []string `example:"[nz.compose.yml, uat.compose.yml]"`
-	// Optional auto update configuration
+	// Optional GitOps update configuration
 	AutoUpdate *portainer.AutoUpdateSettings
 	// A list of environment variables used during stack deployment
 	Env []portainer.Pair
@@ -272,7 +272,7 @@ func (handler *Handler) createComposeStackFromGitRepository(w http.ResponseWrite
 			return httperror.InternalServerError("Unable to check for webhook ID collision", err)
 		}
 		if !isUnique {
-			return &httperror.HandlerError{StatusCode: http.StatusConflict, Message: fmt.Sprintf("Webhook ID: %s already exists", payload.AutoUpdate.Webhook), Err: stackutils.ErrWebhookIDAlreadyExists}
+			return httperror.Conflict(fmt.Sprintf("Webhook ID: %s already exists", payload.AutoUpdate.Webhook), stackutils.ErrWebhookIDAlreadyExists)
 		}
 	}
 

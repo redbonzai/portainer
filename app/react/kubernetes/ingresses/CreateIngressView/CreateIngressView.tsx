@@ -1,13 +1,12 @@
-import { useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { useCurrentStateAndParams, useRouter } from '@uirouter/react';
 import { v4 as uuidv4 } from 'uuid';
 import { debounce } from 'lodash';
 
 import { useEnvironmentId } from '@/react/hooks/useEnvironmentId';
 import { useConfigurations } from '@/react/kubernetes/configs/queries';
-import { useNamespaces } from '@/react/kubernetes/namespaces/queries';
-import { useServices } from '@/react/kubernetes/networks/services/queries';
-import { notifySuccess, notifyError } from '@/portainer/services/notifications';
+import { useNamespaceServices } from '@/react/kubernetes/networks/services/queries';
+import { notifyError, notifySuccess } from '@/portainer/services/notifications';
 import { useAuthorizations } from '@/react/hooks/useUser';
 
 import { Link } from '@@/Link';
@@ -15,6 +14,7 @@ import { PageHeader } from '@@/PageHeader';
 import { Option } from '@@/form-components/Input/Select';
 import { Button } from '@@/buttons';
 
+import { useNamespacesQuery } from '../../namespaces/queries/useNamespacesQuery';
 import { Ingress, IngressController } from '../types';
 import {
   useCreateIngress,
@@ -22,9 +22,15 @@ import {
   useUpdateIngress,
   useIngressControllers,
 } from '../queries';
+import { Annotation } from '../../annotations/types';
 
-import { Annotation } from './Annotations/types';
-import { Rule, Path, Host } from './types';
+import {
+  Rule,
+  Path,
+  Host,
+  GroupedServiceOptions,
+  IngressErrors,
+} from './types';
 import { IngressForm } from './IngressForm';
 import {
   prepareTLS,
@@ -53,41 +59,32 @@ export function CreateIngressView() {
 
   const [namespace, setNamespace] = useState<string>(params.namespace || '');
   const [ingressRule, setIngressRule] = useState<Rule>({} as Rule);
+  // isEditClassNameSet is used to prevent premature validation of the classname in the edit view
+  const [isEditClassNameSet, setIsEditClassNameSet] = useState<boolean>(false);
 
-  const [errors, setErrors] = useState<Record<string, ReactNode>>(
-    {} as Record<string, string>
-  );
+  const [errors, setErrors] = useState<IngressErrors>({});
 
-  const namespacesResults = useNamespaces(environmentId);
+  const { data: namespaces, ...namespacesQuery } =
+    useNamespacesQuery(environmentId);
 
-  const servicesResults = useServices(environmentId, namespace);
+  const { data: allServices } = useNamespaceServices(environmentId, namespace);
   const configResults = useConfigurations(environmentId, namespace);
   const ingressesResults = useIngresses(
     environmentId,
-    namespacesResults.data ? Object.keys(namespacesResults?.data || {}) : []
+    namespaces ? Object.keys(namespaces || {}) : []
   );
-  const ingressControllersResults = useIngressControllers(
-    environmentId,
-    namespace
-  );
+  const { data: ingressControllers, ...ingressControllersQuery } =
+    useIngressControllers(environmentId, namespace);
 
   const createIngressMutation = useCreateIngress();
   const updateIngressMutation = useUpdateIngress();
-
-  const isLoading =
-    (servicesResults.isLoading &&
-      configResults.isLoading &&
-      namespacesResults.isLoading &&
-      ingressesResults.isLoading &&
-      ingressControllersResults.isLoading) ||
-    (isEdit && !ingressRule.IngressName);
 
   const [ingressNames, ingresses, ruleCounterByNamespace, hostWithTLS] =
     useMemo((): [
       string[],
       Ingress[],
       Record<string, number>,
-      Record<string, string>
+      Record<string, string>,
     ] => {
       const ruleCounterByNamespace: Record<string, number> = {};
       const hostWithTLS: Record<string, string> = {};
@@ -121,40 +118,55 @@ export function CreateIngressView() {
       ];
     }, [ingressesResults.data, namespace]);
 
-  const namespacesOptions: Option<string>[] = [
-    { label: 'Select a namespace', value: '' },
-  ];
-  Object.entries(namespacesResults?.data || {}).forEach(([ns, val]) => {
-    if (!val.IsSystem) {
-      namespacesOptions.push({
-        label: ns,
-        value: ns,
-      });
-    }
-  });
-
-  const clusterIpServices = useMemo(
-    () => servicesResults.data?.filter((s) => s.Type === 'ClusterIP'),
-    [servicesResults.data]
-  );
-  const servicesOptions = useMemo(
+  const namespaceOptions = useMemo(
     () =>
-      clusterIpServices?.map((service) => ({
-        label: service.Name,
-        value: service.Name,
-      })),
-    [clusterIpServices]
+      Object.entries(namespaces || {})
+        .filter(([, nsValue]) => !nsValue.IsSystem)
+        .map(([nsKey]) => ({
+          label: nsKey,
+          value: nsKey,
+        })),
+    [namespaces]
   );
 
-  const serviceOptions = [
-    { label: 'Select a service', value: '' },
-    ...(servicesOptions || []),
-  ];
+  const serviceOptions: GroupedServiceOptions = useMemo(() => {
+    const groupedOptions: GroupedServiceOptions = (
+      allServices?.reduce<GroupedServiceOptions>(
+        (groupedOptions, service) => {
+          // add a new option to the group that matches the service type
+          const newGroupedOptions = groupedOptions.map((group) => {
+            if (group.label === service.Type) {
+              return {
+                ...group,
+                options: [
+                  ...group.options,
+                  {
+                    label: service.Name,
+                    selectedLabel: `${service.Name} (${service.Type})`,
+                    value: service.Name,
+                  },
+                ],
+              };
+            }
+            return group;
+          });
+          return newGroupedOptions;
+        },
+        [
+          { label: 'ClusterIP', options: [] },
+          { label: 'NodePort', options: [] },
+          { label: 'LoadBalancer', options: [] },
+        ] as GroupedServiceOptions
+      ) || []
+    ).filter((group) => group.options.length > 0);
+    return groupedOptions;
+  }, [allServices]);
+
   const servicePorts = useMemo(
     () =>
-      clusterIpServices
+      allServices
         ? Object.fromEntries(
-            clusterIpServices?.map((service) => [
+            allServices?.map((service) => [
               service.Name,
               service.Ports.map((port) => ({
                 label: String(port.Port),
@@ -163,42 +175,96 @@ export function CreateIngressView() {
             ])
           )
         : {},
-    [clusterIpServices]
+    [allServices]
   );
 
   const existingIngressClass = useMemo(
     () =>
-      ingressControllersResults.data?.find(
-        (i) =>
-          i.ClassName === ingressRule.IngressClassName ||
-          (i.Type === 'custom' && ingressRule.IngressClassName === '')
+      ingressControllers?.find(
+        (controller) =>
+          controller.ClassName === ingressRule.IngressClassName ||
+          (controller.Type === 'custom' && ingressRule.IngressClassName === '')
       ),
-    [ingressControllersResults.data, ingressRule.IngressClassName]
+    [ingressControllers, ingressRule.IngressClassName]
   );
-  const ingressClassOptions: Option<string>[] = [
-    { label: 'Select an ingress class', value: '' },
-    ...(ingressControllersResults.data
-      ?.filter((cls) => cls.Availability)
-      .map((cls) => ({
-        label: cls.ClassName,
-        value: cls.ClassName,
-      })) || []),
-  ];
 
-  if (
-    (!existingIngressClass ||
-      (existingIngressClass && !existingIngressClass.Availability)) &&
-    ingressRule.IngressClassName &&
-    !ingressControllersResults.isLoading
-  ) {
-    const optionLabel = !ingressRule.IngressType
-      ? `${ingressRule.IngressClassName} - NOT FOUND`
-      : `${ingressRule.IngressClassName} - DISALLOWED`;
-    ingressClassOptions.push({
-      label: optionLabel,
-      value: ingressRule.IngressClassName,
-    });
-  }
+  const ingressClassOptions: Option<string>[] = useMemo(() => {
+    const allowedIngressClassOptions =
+      ingressControllers
+        ?.filter((controller) => !!controller.Availability)
+        .map((cls) => ({
+          label: cls.ClassName,
+          value: cls.ClassName,
+        })) || [];
+
+    // if the ingress class is not set, return only the allowed ingress classes
+    if (ingressRule.IngressClassName === '' || !isEdit) {
+      return allowedIngressClassOptions;
+    }
+
+    // if the ingress class is set and it exists (even if disallowed), return the allowed ingress classes + the disallowed option
+    const disallowedIngressClasses =
+      ingressControllers
+        ?.filter(
+          (controller) =>
+            !controller.Availability &&
+            existingIngressClass?.ClassName === controller.ClassName
+        )
+        .map((controller) => ({
+          label: `${controller.ClassName} - DISALLOWED`,
+          value: controller.ClassName,
+        })) || [];
+
+    const existingIngressClassFound = ingressControllers?.find(
+      (controller) => existingIngressClass?.ClassName === controller.ClassName
+    );
+    if (existingIngressClassFound) {
+      return [...allowedIngressClassOptions, ...disallowedIngressClasses];
+    }
+
+    // if the ingress class is set and it doesn't exist, return the allowed ingress classes + the not found option
+    const notFoundIngressClassOption = {
+      label: `${ingressRule.IngressClassName} - NOT FOUND`,
+      value: ingressRule.IngressClassName || '',
+    };
+    return [...allowedIngressClassOptions, notFoundIngressClassOption];
+  }, [
+    existingIngressClass?.ClassName,
+    ingressControllers,
+    ingressRule.IngressClassName,
+    isEdit,
+  ]);
+
+  const handleIngressChange = useCallback(
+    (key: string, val: string) => {
+      setIngressRule((prevRules) => {
+        const rule = { ...prevRules, [key]: val };
+        if (key === 'IngressClassName') {
+          rule.IngressType = ingressControllers?.find(
+            (c) => c.ClassName === val
+          )?.Type;
+        }
+        return rule;
+      });
+    },
+    [ingressControllers]
+  );
+
+  // when them selected ingress class option update is no longer available set to an empty value
+  useEffect(() => {
+    const ingressClasses = ingressClassOptions.map((option) => option.value);
+    if (
+      !ingressClasses.includes(ingressRule.IngressClassName) &&
+      ingressControllersQuery.isSuccess
+    ) {
+      handleIngressChange('IngressClassName', '');
+    }
+  }, [
+    handleIngressChange,
+    ingressClassOptions,
+    ingressControllersQuery.isSuccess,
+    ingressRule.IngressClassName,
+  ]);
 
   const matchedConfigs = configResults?.data?.filter(
     (config) =>
@@ -221,15 +287,15 @@ export function CreateIngressView() {
       !!params.name &&
       ingressesResults.data &&
       !ingressRule.IngressName &&
-      !ingressControllersResults.isLoading &&
-      !ingressControllersResults.isLoading
+      !ingressControllersQuery.isLoading &&
+      !ingressControllersQuery.isLoading
     ) {
       // if it is an edit screen, prepare the rule from the ingress
       const ing = ingressesResults.data?.find(
         (ing) => ing.Name === params.name && ing.Namespace === params.namespace
       );
       if (ing) {
-        const type = ingressControllersResults.data?.find(
+        const type = ingressControllers?.find(
           (c) =>
             c.ClassName === ing.ClassName ||
             (c.Type === 'custom' && !ing.ClassName)
@@ -237,13 +303,14 @@ export function CreateIngressView() {
         const r = prepareRuleFromIngress(ing, type);
         r.IngressType = type || r.IngressType;
         setIngressRule(r);
+        setIsEditClassNameSet(true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     params.name,
     ingressesResults.data,
-    ingressControllersResults.data,
+    ingressControllers,
     ingressRule.IngressName,
     params.namespace,
   ]);
@@ -291,7 +358,7 @@ export function CreateIngressView() {
     (
       ingressRule: Rule,
       ingressNames: string[],
-      serviceOptions: Option<string>[],
+      groupedServiceOptions: GroupedServiceOptions,
       existingIngressClass?: IngressController
     ) => {
       const errors: Record<string, ReactNode> = {};
@@ -313,12 +380,15 @@ export function CreateIngressView() {
           errors.ingressName = 'Ingress name already exists';
         }
 
-        if (!rule.IngressClassName) {
+        if (
+          (!ingressClassOptions.length || !rule.IngressClassName) &&
+          ingressControllersQuery.isSuccess
+        ) {
           errors.className = 'Ingress class is required';
         }
       }
 
-      if (isEdit && !ingressRule.IngressClassName) {
+      if (isEdit && !ingressRule.IngressClassName && isEditClassNameSet) {
         errors.className =
           'No ingress class is currently set for this ingress - use of the Portainer UI requires one to be set.';
       }
@@ -397,10 +467,14 @@ export function CreateIngressView() {
               'Service name is required';
           }
 
+          const availableServiceNames = groupedServiceOptions.flatMap(
+            (optionGroup) => optionGroup.options.map((option) => option.value)
+          );
+
           if (
             isEdit &&
             path.ServiceName &&
-            !serviceOptions.find((s) => s.value === path.ServiceName)
+            !availableServiceNames.find((sn) => sn === path.ServiceName)
           ) {
             errors[`hosts[${hi}].paths[${pi}].servicename`] = (
               <span>
@@ -455,26 +529,33 @@ export function CreateIngressView() {
       }
       return true;
     },
-    [ingresses, environmentId, isEdit, params.name]
+    [
+      isEdit,
+      isEditClassNameSet,
+      ingressClassOptions.length,
+      ingressControllersQuery.isSuccess,
+      environmentId,
+      ingresses,
+      params.name,
+    ]
   );
 
-  const debouncedValidate = useMemo(() => debounce(validate, 300), [validate]);
+  const debouncedValidate = useMemo(() => debounce(validate, 500), [validate]);
 
   useEffect(() => {
     if (namespace.length > 0) {
       debouncedValidate(
         ingressRule,
         ingressNames || [],
-        servicesOptions || [],
+        serviceOptions || [],
         existingIngressClass
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ingressRule,
     namespace,
     ingressNames,
-    servicesOptions,
+    serviceOptions,
     existingIngressClass,
     debouncedValidate,
   ]);
@@ -482,14 +563,14 @@ export function CreateIngressView() {
   return (
     <>
       <PageHeader
-        title={isEdit ? 'Edit ingress' : 'Add ingress'}
+        title={isEdit ? 'Edit ingress' : 'Create ingress'}
         breadcrumbs={[
           {
             link: 'kubernetes.ingresses',
             label: 'Ingresses',
           },
           {
-            label: isEdit ? 'Edit ingress' : 'Add ingress',
+            label: isEdit ? 'Edit ingress' : 'Create ingress',
           },
         ]}
       />
@@ -497,10 +578,10 @@ export function CreateIngressView() {
         <div className="col-sm-12">
           <IngressForm
             environmentID={environmentId}
-            isLoading={isLoading}
             isEdit={isEdit}
             rule={ingressRule}
             ingressClassOptions={ingressClassOptions}
+            isIngressClassOptionsLoading={ingressControllersQuery.isLoading}
             errors={errors}
             servicePorts={servicePorts}
             tlsOptions={tlsOptions}
@@ -519,10 +600,13 @@ export function CreateIngressView() {
             handleAnnotationChange={handleAnnotationChange}
             namespace={namespace}
             handleNamespaceChange={handleNamespaceChange}
-            namespacesOptions={namespacesOptions}
+            namespacesOptions={namespaceOptions}
+            isNamespaceOptionsLoading={namespacesQuery.isLoading}
+            // wait for ingress results too to set a name that's not taken with handleNamespaceChange()
+            isIngressNamesLoading={ingressesResults.isLoading}
           />
         </div>
-        {namespace && !isLoading && (
+        {namespace && (
           <div className="col-sm-12">
             <Button
               onClick={() => handleCreateIngressRules()}
@@ -541,18 +625,6 @@ export function CreateIngressView() {
     if (!isEdit) {
       addNewIngress(ns);
     }
-  }
-
-  function handleIngressChange(key: string, val: string) {
-    setIngressRule((prevRules) => {
-      const rule = { ...prevRules, [key]: val };
-      if (key === 'IngressClassName') {
-        rule.IngressType = ingressControllersResults.data?.find(
-          (c) => c.ClassName === val
-        )?.Type;
-      }
-      return rule;
-    });
   }
 
   function handleTLSChange(hostIndex: number, tls: string) {
@@ -624,18 +696,11 @@ export function CreateIngressView() {
     const newKey = `${namespace}-ingress-${
       (ruleCounterByNamespace[namespace] || 0) + 1
     }`;
-    const path: Path = {
-      Key: uuidv4(),
-      ServiceName: '',
-      ServicePort: 0,
-      Route: '',
-      PathType: 'Prefix',
-    };
 
     const host: Host = {
       Host: '',
       Secret: '',
-      Paths: [path],
+      Paths: [],
       Key: uuidv4(),
     };
 
@@ -643,7 +708,8 @@ export function CreateIngressView() {
       Key: uuidv4(),
       Namespace: namespace,
       IngressName: newKey,
-      IngressClassName: '',
+      IngressClassName: ingressRule.IngressClassName || '',
+      IngressType: ingressRule.IngressType || '',
       Hosts: [host],
     };
 
@@ -654,17 +720,17 @@ export function CreateIngressView() {
     const rule = { ...ingressRule };
 
     const path: Path = {
+      Key: uuidv4(),
       ServiceName: '',
       ServicePort: 0,
       Route: '',
       PathType: 'Prefix',
-      Key: uuidv4(),
     };
 
     const host: Host = {
       Host: '',
       Secret: '',
-      Paths: [path],
+      Paths: noHost ? [path] : [],
       NoHost: noHost,
       Key: uuidv4(),
     };

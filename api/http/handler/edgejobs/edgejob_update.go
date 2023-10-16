@@ -2,18 +2,17 @@ package edgejobs
 
 import (
 	"errors"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 
-	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/libhttp/request"
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
 	"github.com/portainer/portainer/api/internal/edge"
 	"github.com/portainer/portainer/api/internal/endpointutils"
-	"github.com/portainer/portainer/api/internal/maps"
-	"github.com/portainer/portainer/api/internal/slices"
-	"github.com/portainer/portainer/pkg/featureflags"
+	httperror "github.com/portainer/portainer/pkg/libhttp/error"
+	"github.com/portainer/portainer/pkg/libhttp/request"
 
 	"github.com/asaskevich/govalidator"
 )
@@ -63,20 +62,16 @@ func (handler *Handler) edgeJobUpdate(w http.ResponseWriter, r *http.Request) *h
 	}
 
 	var edgeJob *portainer.EdgeJob
-	if featureflags.IsEnabled(portainer.FeatureNoTx) {
-		edgeJob, err = handler.updateEdgeJob(handler.DataStore, portainer.EdgeJobID(edgeJobID), payload)
-	} else {
-		err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
-			edgeJob, err = handler.updateEdgeJob(tx, portainer.EdgeJobID(edgeJobID), payload)
-			return err
-		})
-	}
+	err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
+		edgeJob, err = handler.updateEdgeJob(tx, portainer.EdgeJobID(edgeJobID), payload)
+		return err
+	})
 
 	return txResponse(w, edgeJob, err)
 }
 
 func (handler *Handler) updateEdgeJob(tx dataservices.DataStoreTx, edgeJobID portainer.EdgeJobID, payload edgeJobUpdatePayload) (*portainer.EdgeJob, error) {
-	edgeJob, err := tx.EdgeJob().EdgeJob(portainer.EdgeJobID(edgeJobID))
+	edgeJob, err := tx.EdgeJob().Read(portainer.EdgeJobID(edgeJobID))
 	if tx.IsErrObjectNotFound(err) {
 		return nil, httperror.NotFound("Unable to find an Edge job with the specified identifier inside the database", err)
 	} else if err != nil {
@@ -88,7 +83,7 @@ func (handler *Handler) updateEdgeJob(tx dataservices.DataStoreTx, edgeJobID por
 		return nil, httperror.InternalServerError("Unable to update Edge job", err)
 	}
 
-	err = tx.EdgeJob().UpdateEdgeJob(edgeJob.ID, edgeJob)
+	err = tx.EdgeJob().Update(edgeJob.ID, edgeJob)
 	if err != nil {
 		return nil, httperror.InternalServerError("Unable to persist Edge job changes inside the database", err)
 	}
@@ -154,7 +149,7 @@ func (handler *Handler) updateEdgeSchedule(tx dataservices.DataStoreTx, edgeJob 
 
 	if len(payload.EdgeGroups) > 0 {
 		for _, edgeGroupID := range payload.EdgeGroups {
-			_, err := tx.EdgeGroup().EdgeGroup(edgeGroupID)
+			_, err := tx.EdgeGroup().Read(edgeGroupID)
 			if err != nil {
 				return err
 			}

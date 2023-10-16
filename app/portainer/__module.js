@@ -121,6 +121,9 @@ angular
             controller: 'AccountController',
           },
         },
+        data: {
+          docs: '/user/account-settings',
+        },
       };
 
       const tokenCreation = {
@@ -154,7 +157,7 @@ angular
         url: '/logout',
         params: {
           error: '',
-          performApiLogout: false,
+          performApiLogout: true,
         },
         views: {
           'content@': {
@@ -171,8 +174,11 @@ angular
         url: '/endpoints',
         views: {
           'content@': {
-            component: 'endpointsView',
+            component: 'environmentsListView',
           },
+        },
+        data: {
+          docs: '/admin/environments',
         },
       };
 
@@ -263,6 +269,9 @@ angular
             controller: 'GroupsController',
           },
         },
+        data: {
+          docs: '/admin/environments/groups',
+        },
       };
 
       var group = {
@@ -306,6 +315,9 @@ angular
             component: 'homeView',
           },
         },
+        data: {
+          docs: '/user/home',
+        },
       };
 
       var init = {
@@ -337,6 +349,9 @@ angular
             controller: 'RegistriesController',
           },
         },
+        data: {
+          docs: '/admin/registries',
+        },
       };
 
       var registry = {
@@ -364,9 +379,11 @@ angular
         url: '/settings',
         views: {
           'content@': {
-            templateUrl: './views/settings/settings.html',
-            controller: 'SettingsController',
+            component: 'settingsView',
           },
+        },
+        data: {
+          docs: '/admin/settings',
         },
       };
 
@@ -379,6 +396,9 @@ angular
             controller: 'SettingsAuthenticationController',
           },
         },
+        data: {
+          docs: '/admin/settings/authentication',
+        },
       };
 
       var settingsEdgeCompute = {
@@ -388,6 +408,9 @@ angular
           'content@': {
             component: 'settingsEdgeComputeView',
           },
+        },
+        data: {
+          docs: '/admin/settings/edge',
         },
       };
 
@@ -400,6 +423,9 @@ angular
             controller: 'TagsController',
           },
         },
+        data: {
+          docs: '/admin/environments/tags',
+        },
       };
 
       var users = {
@@ -411,6 +437,9 @@ angular
             controller: 'UsersController',
           },
         },
+        data: {
+          docs: '/admin/users',
+        },
       };
 
       var user = {
@@ -420,6 +449,16 @@ angular
           'content@': {
             templateUrl: './views/users/edit/user.html',
             controller: 'UserController',
+          },
+        },
+      };
+
+      const createHelmRepository = {
+        name: 'portainer.account.createHelmRepository',
+        url: '/helm-repository/new',
+        views: {
+          'content@': {
+            component: 'createHelmRepositoryView',
           },
         },
       };
@@ -455,6 +494,7 @@ angular
       $stateRegistryProvider.register(tags);
       $stateRegistryProvider.register(users);
       $stateRegistryProvider.register(user);
+      $stateRegistryProvider.register(createHelmRepository);
     },
   ]);
 
