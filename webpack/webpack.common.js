@@ -177,6 +177,10 @@ module.exports = {
       },
     },
   },
+  watchOptions: {
+    ignored: /node_modules/,
+    aggregateTimeout: 200,
+  },
   resolve: {
     alias: {
       '@@': path.resolve(projectRoot, 'app/react/components'),

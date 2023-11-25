@@ -22,6 +22,8 @@ import { withFormValidation } from '@/react-tools/withFormValidation';
 import { withCurrentUser } from '@/react-tools/withCurrentUser';
 import { YAMLInspector } from '@/react/kubernetes/components/YAMLInspector';
 import { ApplicationsStacksDatatable } from '@/react/kubernetes/applications/ListView/ApplicationsStacksDatatable';
+import { NodesDatatable } from '@/react/kubernetes/cluster/HomeView/NodesDatatable';
+import { StackName } from '@/react/kubernetes/DeployView/StackName/StackName';
 
 export const ngModule = angular
   .module('portainer.kubernetes.react.components', [])
@@ -74,7 +76,16 @@ export const ngModule = angular
   )
   .component(
     'createNamespaceRegistriesSelector',
-    r2a(RegistriesSelector, ['inputId', 'onChange', 'options', 'value'])
+    r2a(withUIRouter(withReactQuery(withCurrentUser(RegistriesSelector))), [
+      'inputId',
+      'onChange',
+      'options',
+      'value',
+    ])
+  )
+  .component(
+    'kubeNodesDatatable',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(NodesDatatable))), [])
   )
   .component(
     'kubeApplicationAccessPolicySelector',
@@ -99,6 +110,14 @@ export const ngModule = angular
       'identifier',
       'data',
       'hideMessage',
+    ])
+  )
+  .component(
+    'kubeStackName',
+    r2a(withUIRouter(withReactQuery(withCurrentUser(StackName))), [
+      'setStackName',
+      'isAdmin',
+      'stackName',
     ])
   )
   .component(
@@ -141,6 +160,8 @@ export const ngModule = angular
       'namespaces',
       'onNamespaceChange',
       'isLoading',
+      'showSystem',
+      'setSystemResources',
     ])
   );
 

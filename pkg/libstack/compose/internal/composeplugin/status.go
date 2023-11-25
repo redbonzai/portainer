@@ -1,13 +1,16 @@
 package composeplugin
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/portainer/portainer/pkg/libstack"
+
 	"github.com/rs/zerolog/log"
+	"github.com/segmentio/encoding/json"
 )
 
 type publisher struct {
@@ -106,6 +109,7 @@ func (wrapper *PluginWrapper) WaitForStatus(ctx context.Context, name string, st
 	errorMessageCh := make(chan string)
 
 	go func() {
+	OUTER:
 		for {
 			select {
 			case <-ctx.Done():
@@ -134,13 +138,23 @@ func (wrapper *PluginWrapper) WaitForStatus(ctx context.Context, name string, st
 			}
 
 			var services []service
-			err = json.Unmarshal(output, &services)
-			if err != nil {
-				log.Debug().
-					Str("project_name", name).
-					Err(err).
-					Msg("failed to parse docker compose output")
-				continue
+			dec := json.NewDecoder(bytes.NewReader(output))
+			for {
+				var svc service
+
+				err := dec.Decode(&svc)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					log.Debug().
+						Str("project_name", name).
+						Err(err).
+						Msg("failed to parse docker compose output")
+					continue OUTER
+				}
+
+				services = append(services, svc)
 			}
 
 			if len(services) == 0 && status == libstack.StatusRemoved {

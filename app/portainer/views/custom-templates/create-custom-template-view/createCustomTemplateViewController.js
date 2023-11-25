@@ -1,10 +1,10 @@
 import _ from 'lodash';
 import { AccessControlFormData } from 'Portainer/components/accessControlForm/porAccessControlFormModel';
 import { TEMPLATE_NAME_VALIDATION_REGEX } from '@/constants';
-import { getTemplateVariables, intersectVariables } from '@/react/portainer/custom-templates/components/utils';
-import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
+import { getTemplateVariables, intersectVariables, isTemplateVariablesEnabled } from '@/react/portainer/custom-templates/components/utils';
 import { editor, upload, git } from '@@/BoxSelector/common-options/build-methods';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
+import { fetchFilePreview } from '@/react/portainer/templates/app-templates/queries/useFetchTemplateFile';
 
 class CreateCustomTemplateViewController {
   /* @ngInject */
@@ -25,7 +25,7 @@ class CreateCustomTemplateViewController {
 
     this.buildMethods = [editor, upload, git];
 
-    this.isTemplateVariablesEnabled = isBE;
+    this.isTemplateVariablesEnabled = isTemplateVariablesEnabled;
 
     this.formValues = {
       Title: '',
@@ -54,8 +54,14 @@ class CreateCustomTemplateViewController {
       fromStack: false,
       loading: true,
       isEditorDirty: false,
-      templateNameRegex: TEMPLATE_NAME_VALIDATION_REGEX,
       isTemplateValid: true,
+    };
+
+    this.validationData = {
+      title: {
+        pattern: TEMPLATE_NAME_VALIDATION_REGEX,
+        error: "This field must consist of lower-case alphanumeric characters, '_' or '-' (e.g. 'my-name', or 'abc-123').",
+      },
     };
 
     this.templates = [];
@@ -71,10 +77,20 @@ class CreateCustomTemplateViewController {
     this.onChangeMethod = this.onChangeMethod.bind(this);
     this.onVariablesChange = this.onVariablesChange.bind(this);
     this.handleChange = this.handleChange.bind(this);
+    this.onChangePlatform = this.onChangePlatform.bind(this);
+    this.onChangeType = this.onChangeType.bind(this);
   }
 
   onVariablesChange(value) {
     this.handleChange({ Variables: value });
+  }
+
+  onChangePlatform(value) {
+    this.handleChange({ Platform: value });
+  }
+
+  onChangeType(value) {
+    this.handleChange({ Type: value });
   }
 
   handleChange(values) {
@@ -190,7 +206,7 @@ class CreateCustomTemplateViewController {
       return;
     }
 
-    const variables = getTemplateVariables(templateStr);
+    const [variables] = getTemplateVariables(templateStr);
 
     const isValid = !!variables;
 
@@ -202,38 +218,43 @@ class CreateCustomTemplateViewController {
   }
 
   async $onInit() {
-    const applicationState = this.StateManager.getState();
+    return this.$async(async () => {
+      const applicationState = this.StateManager.getState();
 
-    this.state.endpointMode = applicationState.endpoint.mode;
-    let stackType = 0;
-    if (this.state.endpointMode.provider === 'DOCKER_STANDALONE') {
-      this.isDockerStandalone = true;
-      stackType = 2;
-    } else if (this.state.endpointMode.provider === 'DOCKER_SWARM_MODE') {
-      stackType = 1;
-    }
-    this.formValues.Type = stackType;
-
-    const { fileContent, type } = this.$state.params;
-
-    this.formValues.FileContent = fileContent;
-    if (type) {
-      this.formValues.Type = +type;
-    }
-
-    try {
-      this.templates = await this.CustomTemplateService.customTemplates([1, 2]);
-    } catch (err) {
-      this.Notifications.error('Failure loading', err, 'Failed loading custom templates');
-    }
-
-    this.state.loading = false;
-
-    this.$window.onbeforeunload = () => {
-      if (this.state.Method === 'editor' && this.formValues.FileContent && this.state.isEditorDirty) {
-        return '';
+      this.state.endpointMode = applicationState.endpoint.mode;
+      let stackType = 0;
+      if (this.state.endpointMode.provider === 'DOCKER_STANDALONE') {
+        this.isDockerStandalone = true;
+        stackType = 2;
+      } else if (this.state.endpointMode.provider === 'DOCKER_SWARM_MODE') {
+        stackType = 1;
       }
-    };
+      this.formValues.Type = stackType;
+
+      const { appTemplateId, type } = this.$state.params;
+
+      if (type) {
+        this.formValues.Type = +type;
+      }
+
+      if (appTemplateId) {
+        this.formValues.FileContent = await fetchFilePreview(appTemplateId);
+      }
+
+      try {
+        this.templates = await this.CustomTemplateService.customTemplates([1, 2]);
+      } catch (err) {
+        this.Notifications.error('Failure loading', err, 'Failed loading custom templates');
+      }
+
+      this.state.loading = false;
+
+      this.$window.onbeforeunload = () => {
+        if (this.state.Method === 'editor' && this.formValues.FileContent && this.state.isEditorDirty) {
+          return '';
+        }
+      };
+    });
   }
 
   $onDestroy() {

@@ -1,15 +1,20 @@
-import { EditorType } from '@/react/edge/edge-stacks/types';
+import { DeploymentType, EditorType } from '@/react/edge/edge-stacks/types';
 import { getValidEditorTypes } from '@/react/edge/edge-stacks/utils';
 import { STACK_NAME_VALIDATION_REGEX } from '@/react/constants';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
 import { baseEdgeStackWebhookUrl } from '@/portainer/helpers/webhookHelper';
 import { EnvironmentType } from '@/react/portainer/environments/types';
 import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
+import { getCustomTemplate } from '@/react/portainer/templates/custom-templates/queries/useCustomTemplate';
+import { notifyError } from '@/portainer/services/notifications';
+import { getCustomTemplateFile } from '@/react/portainer/templates/custom-templates/queries/useCustomTemplateFile';
+import { toGitFormModel } from '@/react/portainer/gitops/types';
+import { StackType } from '@/react/common/stacks/types';
 
 export default class CreateEdgeStackViewController {
   /* @ngInject */
-  constructor($state, $window, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope) {
-    Object.assign(this, { $state, $window, EdgeStackService, EdgeGroupService, EdgeTemplateService, Notifications, FormHelper, $async, $scope });
+  constructor($state, $window, EdgeStackService, EdgeGroupService, Notifications, FormHelper, $async, $scope) {
+    Object.assign(this, { $state, $window, EdgeStackService, EdgeGroupService, Notifications, FormHelper, $async, $scope });
 
     this.formValues = {
       Name: '',
@@ -41,6 +46,8 @@ export default class CreateEdgeStackViewController {
       hasKubeEndpoint: false,
       endpointTypes: [],
       baseWebhookUrl: baseEdgeStackWebhookUrl(),
+      isEdit: false,
+      selectedTemplate: null,
     };
 
     this.edgeGroups = null;
@@ -57,6 +64,31 @@ export default class CreateEdgeStackViewController {
     this.hasType = this.hasType.bind(this);
     this.onChangeDeploymentType = this.onChangeDeploymentType.bind(this);
     this.onEnvVarChange = this.onEnvVarChange.bind(this);
+    this.onChangeTemplate = this.onChangeTemplate.bind(this);
+  }
+
+  /**
+   * @param {import('@/react/portainer/templates/custom-templates/types').CustomTemplate} template
+   */
+  onChangeTemplate(template) {
+    return this.$scope.$evalAsync(() => {
+      this.state.selectedTemplate = template;
+
+      this.formValues = {
+        ...this.formValues,
+        DeploymentType: template.Type === StackType.Kubernetes ? DeploymentType.Kubernetes : DeploymentType.Compose,
+        ...toGitFormModel(template.GitConfig),
+        ...(template.EdgeSettings
+          ? {
+              PrePullImage: template.EdgeSettings.PrePullImage || false,
+              RetryDeploy: template.EdgeSettings.RetryDeploy || false,
+              Registries: template.EdgeSettings.PrivateRegistryId ? [template.EdgeSettings.PrivateRegistryId] : [],
+              SupportRelativePath: template.EdgeSettings.RelativePathSettings.SupportRelativePath || false,
+              FilesystemPath: template.EdgeSettings.RelativePathSettings.FilesystemPath || '',
+            }
+          : {}),
+      };
+    });
   }
 
   onEnvVarChange(envVars) {
@@ -70,7 +102,7 @@ export default class CreateEdgeStackViewController {
     const metadata = { type: methodLabel(this.state.Method), format };
 
     if (metadata.type === 'template') {
-      metadata.templateName = this.selectedTemplate.title;
+      metadata.templateName = this.state.selectedTemplate && this.state.selectedTemplate.title;
     }
 
     return { metadata };
@@ -95,11 +127,28 @@ export default class CreateEdgeStackViewController {
     }
   }
 
+  async preSelectTemplate(templateId) {
+    try {
+      this.state.Method = 'template';
+      const template = await getCustomTemplate(templateId);
+      this.onChangeTemplate(template);
+      const fileContent = await getCustomTemplateFile({ id: templateId, git: !!template.GitConfig });
+      this.formValues.StackFileContent = fileContent;
+    } catch (e) {
+      notifyError('Failed loading template', e);
+    }
+  }
+
   async $onInit() {
     try {
       this.edgeGroups = await this.EdgeGroupService.groups();
     } catch (err) {
       this.Notifications.error('Failure', err, 'Unable to retrieve Edge groups');
+    }
+
+    const templateId = this.$state.params.templateId;
+    if (templateId) {
+      this.preSelectTemplate(templateId);
     }
 
     this.$window.onbeforeunload = () => {

@@ -1,7 +1,7 @@
 import _ from 'lodash-es';
 import KubernetesNamespaceHelper from 'Kubernetes/helpers/namespaceHelper';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
-
+import { HelmIcon } from './HelmIcon';
 export default class HelmTemplatesController {
   /* @ngInject */
   constructor($analytics, $async, $state, $window, $anchorScroll, Authentication, HelmService, KubernetesResourcePoolService, Notifications) {
@@ -14,6 +14,8 @@ export default class HelmTemplatesController {
     this.HelmService = HelmService;
     this.KubernetesResourcePoolService = KubernetesResourcePoolService;
     this.Notifications = Notifications;
+
+    this.fallbackIcon = HelmIcon;
 
     this.editorUpdate = this.editorUpdate.bind(this);
     this.uiCanExit = this.uiCanExit.bind(this);
@@ -56,7 +58,7 @@ export default class HelmTemplatesController {
     this.state.actionInProgress = true;
     try {
       const payload = {
-        Name: this.stackName,
+        Name: this.name,
         Repo: this.state.chart.repo,
         Chart: this.state.chart.name,
         Values: this.state.values,
@@ -185,8 +187,9 @@ export default class HelmTemplatesController {
       };
 
       const helmRepos = await this.getHelmRepoURLs();
-      await Promise.all([this.getLatestCharts(helmRepos), this.getResourcePools()]);
-
+      if (helmRepos) {
+        await Promise.all([this.getLatestCharts(helmRepos), this.getResourcePools()]);
+      }
       if (this.state.charts.length > 0 && this.$state.params.chartName) {
         const chart = this.state.charts.find((chart) => chart.name === this.$state.params.chartName);
         if (chart) {

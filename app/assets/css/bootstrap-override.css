@@ -76,8 +76,8 @@
 }
 
 .switch input[type='checkbox']:disabled:is(:checked) + .slider {
-  @apply th-dark:bg-blue-9 th-dark:opacity-60;
-  @apply th-highcontrast:bg-blue-9 th-highcontrast:opacity-60;
+  @apply th-dark:!bg-blue-8 th-dark:!opacity-60;
+  @apply th-highcontrast:!bg-blue-8 th-highcontrast:!opacity-60;
 }
 
 .switch-values {
@@ -97,6 +97,8 @@
   bottom: 0;
   -webkit-transition: 0.4s;
   transition: 0.4s;
+  /* speed up the hover color changes to 200ms, while keeping the movement transition 400ms */
+  @apply transition-colors duration-200;
   @apply bg-gray-6;
   @apply th-dark:bg-gray-warm-8;
   @apply th-highcontrast:bg-gray-warm-8;
@@ -156,6 +158,7 @@ input:checked + .slider:before {
   background-color: var(--bg-checkbox) !important;
   border: 1px solid var(--border-checkbox) !important;
   border-radius: 5px;
+  color: var(--black-color);
 }
 
 .md-checkbox input[type='checkbox']:disabled + label:before {

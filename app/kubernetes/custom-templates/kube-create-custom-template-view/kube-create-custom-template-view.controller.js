@@ -1,6 +1,5 @@
 import { AccessControlFormData } from '@/portainer/components/accessControlForm/porAccessControlFormModel';
-import { getTemplateVariables, intersectVariables } from '@/react/portainer/custom-templates/components/utils';
-import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
+import { getTemplateVariables, intersectVariables, isTemplateVariablesEnabled } from '@/react/portainer/custom-templates/components/utils';
 import { editor, upload, git } from '@@/BoxSelector/common-options/build-methods';
 import { confirmWebEditorDiscard } from '@@/modals/confirm';
 import { KUBE_TEMPLATE_NAME_VALIDATION_REGEX } from '@/constants';
@@ -13,7 +12,7 @@ class KubeCreateCustomTemplateViewController {
     this.methodOptions = [editor, upload, git];
 
     this.templates = null;
-    this.isTemplateVariablesEnabled = isBE;
+    this.isTemplateVariablesEnabled = isTemplateVariablesEnabled;
 
     this.state = {
       method: 'editor',
@@ -21,7 +20,6 @@ class KubeCreateCustomTemplateViewController {
       formValidationError: '',
       isEditorDirty: false,
       isTemplateValid: true,
-      templateNameRegex: KUBE_TEMPLATE_NAME_VALIDATION_REGEX,
     };
 
     this.formValues = {
@@ -42,12 +40,30 @@ class KubeCreateCustomTemplateViewController {
       ComposeFilePathInRepository: 'manifest.yml',
     };
 
+    this.validationData = {
+      title: {
+        pattern: KUBE_TEMPLATE_NAME_VALIDATION_REGEX,
+        error:
+          "This field must consist of lower-case alphanumeric characters, '.', '_' or '-', must start and end with an alphanumeric character and must be 63 characters or less (e.g. 'my-name', or 'abc-123').",
+      },
+    };
+
     this.onChangeFile = this.onChangeFile.bind(this);
     this.onChangeFileContent = this.onChangeFileContent.bind(this);
     this.onChangeMethod = this.onChangeMethod.bind(this);
     this.onBeforeOnload = this.onBeforeOnload.bind(this);
     this.handleChange = this.handleChange.bind(this);
     this.onVariablesChange = this.onVariablesChange.bind(this);
+    this.onChangePlatform = this.onChangePlatform.bind(this);
+    this.onChangeType = this.onChangeType.bind(this);
+  }
+
+  onChangePlatform(value) {
+    this.handleChange({ Platform: value });
+  }
+
+  onChangeType(value) {
+    this.handleChange({ Type: value });
   }
 
   onChangeMethod(method) {
@@ -66,7 +82,7 @@ class KubeCreateCustomTemplateViewController {
       return;
     }
 
-    const variables = getTemplateVariables(templateStr);
+    const [variables] = getTemplateVariables(templateStr);
 
     const isValid = !!variables;
 

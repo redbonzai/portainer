@@ -6,12 +6,13 @@ angular.module('portainer.app').factory('StackService', [
   '$q',
   '$async',
   'Stack',
+  'StackByName',
   'FileUploadService',
   'StackHelper',
   'ServiceService',
   'ContainerService',
   'SwarmService',
-  function StackServiceFactory($q, $async, Stack, FileUploadService, StackHelper, ServiceService, ContainerService, SwarmService) {
+  function StackServiceFactory($q, $async, Stack, StackByName, FileUploadService, StackHelper, ServiceService, ContainerService, SwarmService) {
     'use strict';
     var service = {
       updateGit,
@@ -221,6 +222,19 @@ angular.module('portainer.app').factory('StackService', [
       return deferred.promise;
     };
 
+    service.removeKubernetesStacksByName = function (name, namespace, external, endpointId) {
+      var deferred = $q.defer();
+      StackByName.remove({ name: name, external: external, endpointId: endpointId, namespace: namespace })
+        .$promise.then(function success() {
+          deferred.resolve();
+        })
+        .catch(function error(err) {
+          deferred.reject({ msg: 'Unable to remove the stack', err: err });
+        });
+
+      return deferred.promise;
+    };
+
     service.associate = function (stack, endpointId, orphanedRunning) {
       var deferred = $q.defer();
 
@@ -262,12 +276,13 @@ angular.module('portainer.app').factory('StackService', [
       ).$promise;
     };
 
-    service.updateKubeStack = function (stack, { stackFile, gitConfig, webhookId }) {
+    service.updateKubeStack = function (stack, { stackFile, gitConfig, webhookId, stackName }) {
       let payload = {};
 
       if (stackFile) {
         payload = {
           StackFileContent: stackFile,
+          StackName: stackName,
         };
       } else {
         payload = {
