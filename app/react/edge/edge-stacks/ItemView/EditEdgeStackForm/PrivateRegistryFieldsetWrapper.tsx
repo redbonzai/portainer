@@ -29,7 +29,7 @@ export function PrivateRegistryFieldsetWrapper({
 }) {
   const dryRunMutation = useParseRegistries();
 
-  const registriesQuery = useRegistries();
+  const registriesQuery = useRegistries({ hideDefault: true });
 
   if (!registriesQuery.data) {
     return null;
@@ -62,7 +62,6 @@ export function PrivateRegistryFieldsetWrapper({
       const registries = await dryRunMutation.mutateAsync(values);
 
       if (registries.length === 0) {
-        onChange(undefined);
         return;
       }
 

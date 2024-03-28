@@ -1,5 +1,6 @@
 import { FormikErrors } from 'formik';
 import { boolean, number, object, SchemaOf, string } from 'yup';
+import { useState } from 'react';
 
 import { GitAuthModel } from '@/react/portainer/gitops/types';
 import { useDebounce } from '@/react/hooks/useDebounce';
@@ -23,11 +24,12 @@ interface Props {
 }
 
 export function AuthFieldset({
-  value,
+  value: initialValue,
   onChange,
   isAuthExplanationVisible,
   errors,
 }: Props) {
+  const [value, setValue] = useState(initialValue); // TODO: remove this state when form is not inside angularjs
   const [username, setUsername] = useDebounce(
     value.RepositoryUsername || '',
     (username) => handleChange({ RepositoryUsername: username })
@@ -139,12 +141,14 @@ export function AuthFieldset({
 
   function handleChange(partialValue: Partial<GitAuthModel>) {
     onChange(partialValue);
+    setValue((value) => ({ ...value, ...partialValue }));
   }
 }
 
 export function gitAuthValidation(
   gitCredentials: Array<GitCredential>,
-  isAuthEdit: boolean
+  isAuthEdit: boolean,
+  isCreatedFromCustomTemplate: boolean
 ): SchemaOf<GitAuthModel> {
   return object({
     RepositoryAuthentication: boolean().default(false),
@@ -157,7 +161,8 @@ export function gitAuthValidation(
       .default(''),
     RepositoryPassword: string()
       .when(['RepositoryAuthentication', 'RepositoryGitCredentialID'], {
-        is: (auth: boolean, id: number) => auth && !id && !isAuthEdit,
+        is: (auth: boolean, id: number) =>
+          auth && !id && !isAuthEdit && !isCreatedFromCustomTemplate,
         then: string().required('Password is required'),
       })
       .default(''),

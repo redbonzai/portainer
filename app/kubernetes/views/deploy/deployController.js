@@ -15,7 +15,7 @@ import { getVariablesFieldDefaultValues } from '@/react/portainer/custom-templat
 
 class KubernetesDeployController {
   /* @ngInject */
-  constructor($async, $state, $window, Authentication, Notifications, KubernetesResourcePoolService, StackService, CustomTemplateService) {
+  constructor($async, $state, $window, Authentication, Notifications, KubernetesResourcePoolService, StackService, CustomTemplateService, KubernetesApplicationService) {
     this.$async = $async;
     this.$state = $state;
     this.$window = $window;
@@ -24,6 +24,7 @@ class KubernetesDeployController {
     this.KubernetesResourcePoolService = KubernetesResourcePoolService;
     this.StackService = StackService;
     this.CustomTemplateService = CustomTemplateService;
+    this.KubernetesApplicationService = KubernetesApplicationService;
 
     this.isTemplateVariablesEnabled = isTemplateVariablesEnabled;
 
@@ -33,7 +34,7 @@ class KubernetesDeployController {
       { ...git, value: KubernetesDeployBuildMethods.GIT },
       { ...editor, value: KubernetesDeployBuildMethods.WEB_EDITOR },
       { ...url, value: KubernetesDeployBuildMethods.URL },
-      { ...customTemplate, description: 'Use custom template', value: KubernetesDeployBuildMethods.CUSTOM_TEMPLATE },
+      { ...customTemplate, value: KubernetesDeployBuildMethods.CUSTOM_TEMPLATE },
       { ...helm, value: KubernetesDeployBuildMethods.HELM },
     ];
 
@@ -78,6 +79,8 @@ class KubernetesDeployController {
       Name: '',
     };
 
+    this.stacks = [];
+
     this.ManifestDeployTypes = KubernetesDeployManifestTypes;
     this.BuildMethods = KubernetesDeployBuildMethods;
 
@@ -92,6 +95,15 @@ class KubernetesDeployController {
     this.onChangeDeployType = this.onChangeDeployType.bind(this);
     this.onChangeTemplateVariables = this.onChangeTemplateVariables.bind(this);
     this.setStackName = this.setStackName.bind(this);
+    this.onChangeNamespace = this.onChangeNamespace.bind(this);
+  }
+
+  onChangeNamespace() {
+    return this.$async(async () => {
+      const applications = await this.KubernetesApplicationService.get(this.formValues.Namespace);
+      const stacks = _.map(applications, (item) => item.StackName).filter((item) => item !== '');
+      this.stacks = _.uniq(stacks);
+    });
   }
 
   onSelectHelmChart(chart) {
@@ -213,7 +225,7 @@ class KubernetesDeployController {
           this.state.templateContent = await this.CustomTemplateService.customTemplateFile(templateId, template.GitConfig !== null);
           this.onChangeFileContent(this.state.templateContent);
 
-          this.state.isEditorReadOnly = true;
+          this.state.isEditorReadOnly = false;
         } catch (err) {
           this.state.templateLoadFailed = true;
           throw err;
@@ -377,6 +389,7 @@ class KubernetesDeployController {
         }
       }
 
+      this.onChangeNamespace();
       this.state.viewReady = true;
 
       this.$window.onbeforeunload = () => {

@@ -8,7 +8,6 @@ import { createStore } from '@/react/kubernetes/datatables/default-kube-datatabl
 import { ExpandableDatatable } from '@@/datatables/ExpandableDatatable';
 import { useRepeater } from '@@/datatables/useRepeater';
 import { useTableState } from '@@/datatables/useTableState';
-import { InsightsBox } from '@@/InsightsBox';
 
 import { KubernetesStack } from '../../types';
 
@@ -53,7 +52,7 @@ export function ApplicationsStacksDatatable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSystem]);
 
-  const authorized = useAuthorizations('K8sApplicationsW');
+  const { authorized } = useAuthorizations('K8sApplicationsW');
   useRepeater(tableState.autoRefreshRate, onRefresh);
 
   return (
@@ -73,7 +72,7 @@ export function ApplicationsStacksDatatable({
       emptyContentLabel="No stack available."
       description={
         <div className="w-full">
-          <div className="min-w-[140px] float-right">
+          <div className="min-w-[140px] float-right mr-2">
             <NamespaceFilter
               namespaces={namespaces}
               value={namespace}
@@ -86,14 +85,6 @@ export function ApplicationsStacksDatatable({
             <SystemResourceDescription
               showSystemResources={tableState.showSystemResources}
             />
-
-            <div className="w-fit">
-              <InsightsBox
-                type="slim"
-                header="From 2.18 on, you can filter this view by namespace."
-                insightCloseId="k8s-namespace-filtering"
-              />
-            </div>
           </div>
         </div>
       }

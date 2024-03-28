@@ -1,9 +1,9 @@
 import _ from 'lodash-es';
 import { AccessControlFormData } from 'Portainer/components/accessControlForm/porAccessControlFormModel';
-import { TEMPLATE_NAME_VALIDATION_REGEX } from '@/constants';
 import { isTemplateVariablesEnabled, renderTemplate } from '@/react/portainer/custom-templates/components/utils';
 import { confirmDelete } from '@@/modals/confirm';
 import { getVariablesFieldDefaultValues } from '@/react/portainer/custom-templates/components/CustomTemplatesVariablesField';
+import { TEMPLATE_NAME_VALIDATION_REGEX } from '@/react/portainer/custom-templates/components/CommonFields';
 
 class CustomTemplatesViewController {
   /* @ngInject */
@@ -203,6 +203,9 @@ class CustomTemplatesViewController {
     }
 
     const template = _.find(this.templates, { Id: templateId });
+
+    const isGit = template.GitConfig !== null;
+    this.state.isEditorReadOnly = isGit;
 
     try {
       this.state.templateContent = this.formValues.fileContent = await this.CustomTemplateService.customTemplateFile(template.Id, template.GitConfig !== null);

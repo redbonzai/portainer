@@ -47,6 +47,8 @@ export const ngModule = angular
       'selectedId',
       'disabledTypes',
       'fixedCategories',
+      'storageKey',
+      'templateLinkParams',
     ])
   )
   .component(
@@ -57,6 +59,7 @@ export const ngModule = angular
       'templates',
       'selectedId',
       'templateLinkParams',
+      'storageKey',
     ])
   )
   .component(

@@ -3,6 +3,7 @@ package composeplugin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -126,6 +127,12 @@ func (wrapper *PluginWrapper) WaitForStatus(ctx context.Context, name string, st
 				log.Debug().
 					Str("project_name", name).
 					Msg("no output from docker compose ps")
+
+				if status == libstack.StatusRemoved {
+					errorMessageCh <- ""
+					return
+				}
+
 				continue
 			}
 
@@ -143,7 +150,7 @@ func (wrapper *PluginWrapper) WaitForStatus(ctx context.Context, name string, st
 				var svc service
 
 				err := dec.Decode(&svc)
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				if err != nil {

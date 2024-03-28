@@ -14,12 +14,11 @@ import {
 import { EnvironmentGroupId } from '@/react/portainer/environments/environment-groups/types';
 import {
   refetchIfAnyOffline,
-  SortType,
   useEnvironmentList,
 } from '@/react/portainer/environments/queries/useEnvironmentList';
 import { useGroups } from '@/react/portainer/environments/environment-groups/queries';
 import { EnvironmentsQueryParams } from '@/react/portainer/environments/environment.service';
-import { useUser } from '@/react/hooks/useUser';
+import { useIsPureAdmin } from '@/react/hooks/useUser';
 import { isBE } from '@/react/portainer/feature-flags/feature-flags.service';
 import { environmentStore } from '@/react/hooks/current-environment-store';
 
@@ -37,6 +36,7 @@ import { NoEnvironmentsInfoPanel } from './NoEnvironmentsInfoPanel';
 import { UpdateBadge } from './UpdateBadge';
 import { EnvironmentListFilters } from './EnvironmentListFilters';
 import { AMTButton } from './AMTButton/AMTButton';
+import { ListSortType } from './SortbySelector';
 
 interface Props {
   onClickBrowse(environment: Environment): void;
@@ -46,7 +46,7 @@ interface Props {
 const storageKey = 'home_endpoints';
 
 export function EnvironmentList({ onClickBrowse, onRefresh }: Props) {
-  const { isAdmin } = useUser();
+  const isPureAdmin = useIsPureAdmin();
   const currentEnvStore = useStore(environmentStore);
 
   const [platformTypes, setPlatformTypes] = useHomePageFilter<PlatformType[]>(
@@ -70,7 +70,7 @@ export function EnvironmentList({ onClickBrowse, onRefresh }: Props) {
     []
   );
   const [sortByFilter, setSortByFilter] = useHomePageFilter<
-    SortType | undefined
+    ListSortType | undefined
   >('sortBy', undefined);
   const [sortByDescending, setSortByDescending] = useHomePageFilter(
     'sortOrder',
@@ -138,7 +138,9 @@ export function EnvironmentList({ onClickBrowse, onRefresh }: Props) {
 
   return (
     <>
-      {totalAvailable === 0 && <NoEnvironmentsInfoPanel isAdmin={isAdmin} />}
+      {totalAvailable === 0 && (
+        <NoEnvironmentsInfoPanel isAdmin={isPureAdmin} />
+      )}
 
       <TableContainer>
         <div className="px-4">
@@ -160,7 +162,7 @@ export function EnvironmentList({ onClickBrowse, onRefresh }: Props) {
                 placeholder="Search by name, group, tag, status, URL..."
                 data-cy="home-endpointsSearchInput"
               />
-              {isAdmin && (
+              {isPureAdmin && (
                 <Button
                   onClick={onRefresh}
                   data-cy="home-refreshEndpointsButton"
@@ -210,6 +212,7 @@ export function EnvironmentList({ onClickBrowse, onRefresh }: Props) {
           <div
             className="blocklist mt-5 !space-y-2 !p-0"
             data-cy="home-endpointList"
+            role="list"
           >
             {renderItems(
               isLoading,

@@ -2,7 +2,7 @@ import { Formik } from 'formik';
 import { useRouter } from '@uirouter/react';
 import { useEffect, useState } from 'react';
 
-import { useCurrentUser, useIsEnvironmentAdmin } from '@/react/hooks/useUser';
+import { useIsEdgeAdmin, useIsEnvironmentAdmin } from '@/react/hooks/useUser';
 import { useEnvironmentId } from '@/react/hooks/useEnvironmentId';
 import { useCurrentEnvironment } from '@/react/hooks/useCurrentEnvironment';
 import { useEnvironmentRegistries } from '@/react/portainer/environments/queries/useEnvironmentRegistries';
@@ -17,6 +17,7 @@ import { confirmDestructive } from '@@/modals/confirm';
 import { buildConfirmButton } from '@@/modals/utils';
 import { InformationPanel } from '@@/InformationPanel';
 import { TextTip } from '@@/Tip/TextTip';
+import { HelpLink } from '@@/HelpLink';
 
 import { useContainers } from '../queries/containers';
 import { useSystemLimits } from '../../proxy/queries/useInfo';
@@ -48,8 +49,10 @@ function CreateForm() {
   const environmentId = useEnvironmentId();
   const router = useRouter();
   const { trackEvent } = useAnalytics();
-  const { isAdmin } = useCurrentUser();
-  const isEnvironmentAdmin = useIsEnvironmentAdmin();
+  const isAdminQuery = useIsEdgeAdmin();
+  const { authorized: isEnvironmentAdmin } = useIsEnvironmentAdmin({
+    adminOnlyCE: true,
+  });
   const [isDockerhubRateLimited, setIsDockerhubRateLimited] = useState(false);
 
   const mutation = useCreateOrReplaceMutation();
@@ -67,7 +70,7 @@ function CreateForm() {
   const envQuery = useCurrentEnvironment();
 
   const validationSchema = useValidation({
-    isAdmin,
+    isAdmin: isAdminQuery.isAdmin,
     maxCpu,
     maxMemory,
     isDuplicating: initialValuesQuery?.isDuplicating,
@@ -98,14 +101,10 @@ function CreateForm() {
           <TextTip>
             The new container may fail to start if the image is changed, and
             settings from the previous container aren&apos;t compatible. Common
-            causes include entrypoint, cmd or
-            <a
-              href="https://docs.portainer.io/user/docker/containers/advanced"
-              target="_blank"
-              rel="noreferrer"
-            >
+            causes include entrypoint, cmd or{' '}
+            <HelpLink docLink="/user/docker/containers/advanced">
               other settings
-            </a>{' '}
+            </HelpLink>{' '}
             set by an image.
           </TextTip>
         </InformationPanel>
@@ -138,14 +137,14 @@ function CreateForm() {
       });
 
       if (!confirmed) {
-        return;
+        return false;
       }
     }
 
     const registry = getRegistry(values.image, registriesQuery.data || []);
     const config = toRequest(values, registry, hideCapabilities);
 
-    mutation.mutate(
+    return mutation.mutate(
       { config, environment, values, registry, oldContainer, extraNetworks },
       {
         onSuccess() {
@@ -187,11 +186,10 @@ function useOldContainer(initialName?: string) {
       name: [`^/${debouncedName}$`],
     },
   });
+
   useEffect(() => {
-    if (initialName && initialName !== name) {
-      setName(initialName);
-    }
-  }, [initialName, name]);
+    setName(initialName);
+  }, [initialName]);
 
   return {
     syncName: setName,

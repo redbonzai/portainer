@@ -1,6 +1,5 @@
 import { Rocket } from 'lucide-react';
-
-import { render, fireEvent } from '@/react-tools/test-utils';
+import { render, fireEvent } from '@testing-library/react';
 
 import { BoxSelector } from './BoxSelector';
 import { BoxSelectorOption, Value } from './types';
@@ -44,7 +43,7 @@ test('should render with the initial value selected and call onChange when click
     },
   ];
 
-  const onChange = jest.fn();
+  const onChange = vi.fn();
   const { getByLabelText } = renderDefault({
     options,
     onChange,

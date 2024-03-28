@@ -1,6 +1,6 @@
 import { Edit } from 'lucide-react';
 import _ from 'lodash';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { DatatableHeader } from '@@/datatables/DatatableHeader';
 import { Table } from '@@/datatables';
@@ -14,35 +14,55 @@ import { ListState, TemplateType } from './types';
 import { useSortAndFilterTemplates } from './useSortAndFilter';
 import { Filters } from './Filters';
 
-const tableKey = 'app-templates-list';
-const store = createPersistedStore<ListState>(tableKey, undefined, (set) => ({
-  category: null,
-  setCategory: (category: ListState['category']) => set({ category }),
-  types: [],
-  setTypes: (types: ListState['types']) => set({ types }),
-}));
-
 export function AppTemplatesList({
-  templates,
+  templates: initialTemplates,
   onSelect,
   selectedId,
   disabledTypes,
   fixedCategories,
+  storageKey,
+  templateLinkParams,
 }: {
+  storageKey: string;
   templates?: TemplateViewModel[];
-  onSelect: (template: TemplateViewModel) => void;
+  onSelect?: (template: TemplateViewModel) => void;
   selectedId?: TemplateViewModel['Id'];
   disabledTypes?: Array<TemplateType>;
   fixedCategories?: Array<string>;
+  templateLinkParams?: (template: TemplateViewModel) => {
+    to: string;
+    params: object;
+  };
 }) {
   const [page, setPage] = useState(0);
+  const [store] = useState(() =>
+    createPersistedStore<ListState>(storageKey, undefined, (set) => ({
+      category: null,
+      setCategory: (category: ListState['category']) => set({ category }),
+      types: [],
+      setTypes: (types: ListState['types']) => set({ types }),
+    }))
+  );
+  const listState = useTableState(store, storageKey);
 
-  const listState = useTableState(store, tableKey);
+  const templates = useMemo(() => {
+    if (!initialTemplates) {
+      return [];
+    }
+
+    if (!fixedCategories?.length) {
+      return initialTemplates;
+    }
+
+    return initialTemplates.filter((template) =>
+      fixedCategories.some((category) => template.Categories.includes(category))
+    );
+  }, [fixedCategories, initialTemplates]);
+
   const filteredTemplates = useSortAndFilterTemplates(
     templates || [],
     listState,
-    disabledTypes,
-    fixedCategories
+    disabledTypes
   );
 
   const pagedTemplates =
@@ -58,7 +78,7 @@ export function AppTemplatesList({
         description={
           <Filters
             listState={listState}
-            templates={filteredTemplates || []}
+            templates={templates || []}
             onChange={() => setPage(0)}
             disabledTypes={disabledTypes}
             fixedCategories={fixedCategories}
@@ -66,13 +86,14 @@ export function AppTemplatesList({
         }
       />
 
-      <div className="blocklist gap-y-2 !px-[20px] !pb-[20px]">
+      <div className="blocklist gap-y-2 !px-[20px] !pb-[20px]" role="list">
         {pagedTemplates.map((template) => (
           <AppTemplatesListItem
             key={template.Id}
             template={template}
             onSelect={onSelect}
             isSelected={selectedId === template.Id}
+            linkParams={templateLinkParams?.(template)}
           />
         ))}
         {!templates && <div className="text-muted text-center">Loading...</div>}

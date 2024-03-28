@@ -1,4 +1,4 @@
-<div class="datatable">
+<section class="datatable" aria-label="Helm charts">
   <div class="toolBar vertical-center relative w-full flex-wrap !gap-x-5 !gap-y-1 !px-0">
     <div class="toolBarTitle vertical-center">
       {{ $ctrl.titleText }}
@@ -6,7 +6,7 @@
 
     <div class="searchBar vertical-center !mr-0">
       <pr-icon icon="'search'" class="searchIcon"></pr-icon>
-      <input type="text" class="searchInput" ng-model="$ctrl.state.textFilter" placeholder="Search for a chart..." auto-focus ng-model-options="{ debounce: 300 }" />
+      <input type="text" class="searchInput" ng-model="$ctrl.state.textFilter" placeholder="Search..." auto-focus ng-model-options="{ debounce: 300 }" aria-label="Search input" />
     </div>
     <div class="w-1/5">
       <por-select
@@ -21,7 +21,8 @@
   </div>
   <div class="w-full">
     <div class="mb-2 small text-muted"
-      >Select the Helm chart to use. Bring further Helm charts into your selection list via <a ui-sref="portainer.account">User settings - Helm repositories</a>.</div
+      >Select the Helm chart to use. Bring further Helm charts into your selection list via
+      <a ui-sref="portainer.account({'#': 'helm-repositories'})">User settings - Helm repositories</a>.</div
     >
     <beta-alert
       is-html="true"
@@ -29,7 +30,7 @@
     ></beta-alert>
   </div>
 
-  <div class="blocklist !px-0">
+  <div class="blocklist !px-0" role="list">
     <helm-templates-list-item
       ng-repeat="chart in allCharts = ($ctrl.charts | filter:$ctrl.state.textFilter | filter: $ctrl.state.selectedCategory)"
       model="chart"
@@ -40,8 +41,8 @@
     <div ng-if="!allCharts.length" class="text-muted small mt-4"> No Helm charts found </div>
     <div ng-if="$ctrl.loading" class="text-muted text-center">
       Loading...
-      <div class="text-muted text-center"> Initial download of Helm Charts can take a few minutes </div>
+      <div class="text-muted text-center"> Initial download of Helm charts can take a few minutes </div>
     </div>
     <div ng-if="!$ctrl.loading && $ctrl.charts.length === 0" class="text-muted text-center"> No helm charts available. </div>
   </div>
-</div>
+</section>

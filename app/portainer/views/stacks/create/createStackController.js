@@ -302,10 +302,11 @@ angular
             $scope.state.selectedTemplate = template;
 
             try {
-              $scope.state.templateContent = await this.CustomTemplateService.customTemplateFile(templateId, template.GitConfig !== null);
+              const isGit = template.GitConfig !== null;
+              $scope.state.templateContent = await this.CustomTemplateService.customTemplateFile(templateId, isGit);
               onChangeFileContent($scope.state.templateContent);
 
-              $scope.state.isEditorReadOnly = true;
+              $scope.state.isEditorReadOnly = isGit;
             } catch (err) {
               $scope.state.templateLoadFailed = true;
               throw err;
@@ -328,6 +329,7 @@ angular
           return;
         }
         const rendered = renderTemplate($scope.state.templateContent, $scope.formValues.Variables, $scope.state.selectedTemplate.Variables);
+        $scope.state.editorYamlValidationError = StackHelper.validateYAML(rendered, $scope.containerNames);
         onChangeFormValues({ StackFileContent: rendered });
       }
 

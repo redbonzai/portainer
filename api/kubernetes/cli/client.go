@@ -81,20 +81,29 @@ func (factory *ClientFactory) RemoveKubeClient(endpointID portainer.EndpointID) 
 // If no client is registered, it will create a new client, register it, and returns it.
 func (factory *ClientFactory) GetKubeClient(endpoint *portainer.Endpoint) (*KubeClient, error) {
 	factory.mu.Lock()
+	key := strconv.Itoa(int(endpoint.ID))
+	if client, ok := factory.endpointClients[key]; ok {
+		factory.mu.Unlock()
+		return client, nil
+	}
+	factory.mu.Unlock()
+
+	// EE-6901: Do not lock
+	client, err := factory.createCachedAdminKubeClient(endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	factory.mu.Lock()
 	defer factory.mu.Unlock()
 
-	key := strconv.Itoa(int(endpoint.ID))
-	client, ok := factory.endpointClients[key]
-	if !ok {
-		var err error
-
-		client, err = factory.createCachedAdminKubeClient(endpoint)
-		if err != nil {
-			return nil, err
-		}
-
-		factory.endpointClients[key] = client
+	// The lock was released before the client was created,
+	// so we need to check again
+	if c, ok := factory.endpointClients[key]; ok {
+		return c, nil
 	}
+
+	factory.endpointClients[key] = client
 
 	return client, nil
 }
@@ -242,6 +251,10 @@ func (factory *ClientFactory) buildEdgeConfig(endpoint *portainer.Endpoint) (*re
 	}
 
 	signature, err := factory.signatureService.CreateSignature(portainer.PortainerAgentSignatureMessage)
+	if err != nil {
+		return nil, err
+	}
+
 	config.Insecure = true
 	config.QPS = DefaultKubeClientQPS
 	config.Burst = DefaultKubeClientBurst
@@ -255,32 +268,6 @@ func (factory *ClientFactory) buildEdgeConfig(endpoint *portainer.Endpoint) (*re
 	})
 
 	return config, nil
-}
-
-func (factory *ClientFactory) createRemoteClient(endpointURL string) (*kubernetes.Clientset, error) {
-	signature, err := factory.signatureService.CreateSignature(portainer.PortainerAgentSignatureMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags(endpointURL, "")
-	if err != nil {
-		return nil, err
-	}
-
-	config.Insecure = true
-	config.QPS = DefaultKubeClientQPS
-	config.Burst = DefaultKubeClientBurst
-
-	config.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return &agentHeaderRoundTripper{
-			signatureHeader: signature,
-			publicKeyHeader: factory.signatureService.EncodedPublicKey(),
-			roundTripper:    rt,
-		}
-	})
-
-	return kubernetes.NewForConfig(config)
 }
 
 func (factory *ClientFactory) CreateRemoteMetricsClient(endpoint *portainer.Endpoint) (*metricsv.Clientset, error) {

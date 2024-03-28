@@ -1,5 +1,6 @@
 import angular from 'angular';
 
+import { AccessHeaders } from '@/portainer/authorization-guard';
 import edgeStackModule from './views/edge-stacks';
 import { reactModule } from './react';
 
@@ -12,6 +13,9 @@ angular
       url: '/edge',
       parent: 'root',
       abstract: true,
+      data: {
+        access: AccessHeaders.EdgeAdmin,
+      },
     };
 
     const groups = {
@@ -62,11 +66,14 @@ angular
 
     const stacksNew = {
       name: 'edge.stacks.new',
-      url: '/new?templateId',
+      url: '/new?templateId&templateType',
       views: {
         'content@': {
           component: 'createEdgeStackView',
         },
+      },
+      data: {
+        docs: '/user/edge/stacks/add',
       },
     };
 
@@ -137,7 +144,7 @@ angular
           },
         },
         data: {
-          docs: '/user/edge/devices',
+          docs: '/user/edge/waiting-room',
         },
       });
     }
@@ -151,7 +158,7 @@ angular
         },
       },
       data: {
-        docs: '/user/edge/templates',
+        docs: '/user/edge/templates/application',
       },
     });
 
@@ -174,7 +181,7 @@ angular
 
       views: {
         'content@': {
-          component: 'edgeCreateCustomTemplatesView',
+          component: 'createCustomTemplatesView',
         },
       },
     });
@@ -185,7 +192,7 @@ angular
 
       views: {
         'content@': {
-          component: 'edgeEditCustomTemplatesView',
+          component: 'editCustomTemplatesView',
         },
       },
     });

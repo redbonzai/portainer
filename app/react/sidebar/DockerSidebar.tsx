@@ -15,7 +15,7 @@ import {
   type Environment,
   type EnvironmentId,
 } from '@/react/portainer/environments/types';
-import { Authorized, useUser, isEnvironmentAdmin } from '@/react/hooks/useUser';
+import { Authorized, useIsEnvironmentAdmin } from '@/react/hooks/useUser';
 import { useInfo } from '@/react/docker/proxy/queries/useInfo';
 import { useApiVersion } from '@/react/docker/proxy/queries/useVersion';
 
@@ -30,11 +30,13 @@ interface Props {
 }
 
 export function DockerSidebar({ environmentId, environment }: Props) {
-  const { user } = useUser();
-  const isAdmin = isEnvironmentAdmin(user, environmentId);
+  const { authorized: isEnvironmentAdmin } = useIsEnvironmentAdmin({
+    adminOnlyCE: true,
+  });
 
   const areStacksVisible =
-    isAdmin || environment.SecuritySettings.allowStackManagementForRegularUsers;
+    isEnvironmentAdmin ||
+    environment.SecuritySettings.allowStackManagementForRegularUsers;
 
   const envInfoQuery = useInfo(
     environmentId,
@@ -79,6 +81,7 @@ export function DockerSidebar({ environmentId, environment }: Props) {
         to="docker.templates"
         params={{ endpointId: environmentId }}
         data-cy="portainerSidebar-templates"
+        listId="dockerSidebar-templates"
       >
         <SidebarItem
           label="Application"
@@ -167,7 +170,7 @@ export function DockerSidebar({ environmentId, environment }: Props) {
         />
       )}
 
-      {!isSwarmManager && isAdmin && (
+      {!isSwarmManager && isEnvironmentAdmin && (
         <SidebarItem
           to="docker.events"
           params={{ endpointId: environmentId }}
@@ -182,7 +185,8 @@ export function DockerSidebar({ environmentId, environment }: Props) {
         icon={setupSubMenuProps.icon}
         to={setupSubMenuProps.to}
         params={{ endpointId: environmentId }}
-        data-cy="portainerSidebar-host"
+        data-cy="portainerSidebar-host-area"
+        listId="portainerSidebar-host-area"
       >
         <SidebarItem
           label="Details"

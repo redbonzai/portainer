@@ -230,7 +230,7 @@ func (m *Migrator) initMigrations() {
 	)
 	m.addMigrations("2.20",
 		m.updateAppTemplatesVersionForDB110,
-		m.setUserCacheForDB110,
+		m.updateResourceOverCommitToDB110,
 	)
 
 	// Add new migrations below...

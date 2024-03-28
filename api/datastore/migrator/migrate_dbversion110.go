@@ -24,18 +24,26 @@ func (migrator *Migrator) updateAppTemplatesVersionForDB110() error {
 	return migrator.settingsService.UpdateSettings(settings)
 }
 
-// setUseCacheForDB110 sets the user cache to true for all users
-func (migrator *Migrator) setUserCacheForDB110() error {
-	users, err := migrator.userService.ReadAll()
+// In PortainerCE the resource overcommit option should always be true across all endpoints
+func (migrator *Migrator) updateResourceOverCommitToDB110() error {
+	log.Info().Msg("updating resource overcommit setting to true")
+
+	endpoints, err := migrator.endpointService.Endpoints()
 	if err != nil {
 		return err
 	}
 
-	for i := range users {
-		user := &users[i]
-		user.UseCache = true
-		if err := migrator.userService.Update(user.ID, user); err != nil {
-			return err
+	for _, endpoint := range endpoints {
+		if endpoint.Type == portainer.KubernetesLocalEnvironment ||
+			endpoint.Type == portainer.AgentOnKubernetesEnvironment ||
+			endpoint.Type == portainer.EdgeAgentOnKubernetesEnvironment {
+
+			endpoint.Kubernetes.Configuration.EnableResourceOverCommit = true
+
+			err = migrator.endpointService.UpdateEndpoint(endpoint.ID, &endpoint)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

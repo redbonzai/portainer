@@ -47,6 +47,7 @@
                       ng-disabled="ctrl.formValues.namespace_toggle && ctrl.state.BuildMethod !== ctrl.BuildMethods.HELM"
                       class="form-control"
                       ng-model="ctrl.formValues.Namespace"
+                      ng-change="ctrl.onChangeNamespace()"
                       ng-options="namespace.Name as namespace.Name for namespace in ctrl.namespaces"
                     ></select>
                     <span ng-if="ctrl.formValues.namespace_toggle && ctrl.state.BuildMethod !== ctrl.BuildMethods.HELM" class="small text-muted pt-[7px]"
@@ -63,7 +64,7 @@
                 </div>
 
                 <div class="form-group">
-                  <label for="name" class="col-lg-2 col-sm-3 control-label text-left">Name</label>
+                  <label for="name" class="col-lg-2 col-sm-3 control-label text-left" ng-class="{ required: ctrl.state.BuildMethod === ctrl.BuildMethods.HELM }">Name</label>
                   <div class="col-sm-8 small text-muted pt-[7px]" ng-if="ctrl.state.BuildMethod !== ctrl.BuildMethods.HELM">
                     Resource names specified in the manifest will be used
                   </div>
@@ -85,12 +86,12 @@
                   </div>
                 </div>
 
-                <kube-stack-name
-                  ng-if="!ctrl.deploymentOptions.hideStacksFunctionality && ctrl.state.BuildMethod !== ctrl.BuildMethods.HELM"
-                  stack-name="ctrl.formValues.StackName"
-                  set-stack-name="(ctrl.setStackName)"
-                  is-admin="ctrl.currentUser.isAdmin"
-                ></kube-stack-name>
+                <div ng-if="!ctrl.deploymentOptions.hideStacksFunctionality && ctrl.state.BuildMethod !== ctrl.BuildMethods.HELM">
+                  <div class="w-fit mb-4">
+                    <stack-name-label-insight></stack-name-label-insight>
+                  </div>
+                  <kube-stack-name stack-name="ctrl.formValues.StackName" set-stack-name="(ctrl.setStackName)" stacks="ctrl.stacks"></kube-stack-name>
+                </div>
                 <!-- !namespace -->
 
                 <!-- repository -->
@@ -105,7 +106,7 @@
                   deploy-method="{{ ctrl.state.DeployType === ctrl.ManifestDeployTypes.COMPOSE ? 'compose' : 'manifest' }}"
                   base-webhook-url="{{ ctrl.state.baseWebhookUrl }}"
                   webhook-id="{{ ctrl.state.webhookId }}"
-                  webhooks-docs="https://docs.portainer.io/user/kubernetes/applications/webhooks"
+                  webhooks-docs="/user/kubernetes/applications/webhooks"
                 ></git-form>
                 <!-- !repository -->
 

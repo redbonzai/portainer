@@ -9,6 +9,7 @@ import { withFormValidation } from '@/react-tools/withFormValidation';
 import { GroupAssociationTable } from '@/react/portainer/environments/environment-groups/components/GroupAssociationTable';
 import { AssociatedEnvironmentsSelector } from '@/react/portainer/environments/environment-groups/components/AssociatedEnvironmentsSelector';
 import { HelmRepositoryDatatable } from '@/react/portainer/account/AccountView/HelmRepositoryDatatable';
+import { withControlledInput } from '@/react-tools/withControlledInput';
 
 import {
   EnvironmentVariablesFieldset,
@@ -21,7 +22,6 @@ import { PageHeader } from '@@/PageHeader';
 import { TagSelector } from '@@/TagSelector';
 import { Loading } from '@@/Widget/Loading';
 import { PasswordCheckHint } from '@@/PasswordCheckHint';
-import { ViewLoading } from '@@/ViewLoading';
 import { Tooltip } from '@@/Tip/Tooltip';
 import { Badge } from '@@/Badge';
 import { TableColumnHeaderAngular } from '@@/datatables/TableHeaderCell';
@@ -30,11 +30,13 @@ import { SearchBar } from '@@/datatables/SearchBar';
 import { FallbackImage } from '@@/FallbackImage';
 import { BadgeIcon } from '@@/BadgeIcon';
 import { TeamsSelector } from '@@/TeamsSelector';
+import { TerminalTooltip } from '@@/TerminalTooltip';
 import { PortainerSelect } from '@@/form-components/PortainerSelect';
 import { Slider } from '@@/form-components/Slider';
 import { TagButton } from '@@/TagButton';
 import { BETeaserButton } from '@@/BETeaserButton';
 import { CodeEditor } from '@@/CodeEditor';
+import { HelpLink } from '@@/HelpLink';
 
 import { fileUploadField } from './file-upload-field';
 import { switchField } from './switch-field';
@@ -43,7 +45,6 @@ import { gitFormModule } from './git-form';
 import { settingsModule } from './settings';
 import { accessControlModule } from './access-control';
 import { environmentsModule } from './environments';
-import { envListModule } from './environments-list-view-components';
 import { registriesModule } from './registries';
 import { accountModule } from './account';
 
@@ -51,7 +52,6 @@ export const ngModule = angular
   .module('portainer.app.react.components', [
     accessControlModule,
     customTemplatesModule,
-    envListModule,
     environmentsModule,
     gitFormModule,
     registriesModule,
@@ -86,6 +86,7 @@ export const ngModule = angular
     'portainerTooltip',
     r2a(Tooltip, ['message', 'position', 'className', 'setHtmlMessage', 'size'])
   )
+  .component('terminalTooltip', r2a(TerminalTooltip, []))
   .component('badge', r2a(Badge, ['type', 'className']))
   .component('fileUploadField', fileUploadField)
   .component('porSwitchField', switchField)
@@ -106,7 +107,6 @@ export const ngModule = angular
       'isSortedDesc',
     ])
   )
-  .component('viewLoading', r2a(ViewLoading, ['message']))
   .component(
     'pageHeader',
     r2a(withUIRouter(withReactQuery(withCurrentUser(PageHeader))), [
@@ -126,6 +126,14 @@ export const ngModule = angular
   .component(
     'reactQueryDevTools',
     r2a(withReactQuery(ReactQueryDevtoolsWrapper), [])
+  )
+  .component(
+    'helpLink',
+    r2a(withUIRouter(withReactQuery(HelpLink)), [
+      'docLink',
+      'target',
+      'children',
+    ])
   )
   .component(
     'dashboardItem',
@@ -184,6 +192,8 @@ export const ngModule = angular
       'isClearable',
       'components',
       'isLoading',
+      'noOptionsMessage',
+      'aria-label',
     ])
   )
   .component(
@@ -196,9 +206,9 @@ export const ngModule = angular
       'onChange',
       'visibleTooltip',
       'dataCy',
+      'disabled',
     ])
   )
-
   .component(
     'reactCodeEditor',
     r2a(CodeEditor, [
@@ -240,15 +250,15 @@ export const componentsModule = ngModule.name;
 
 withFormValidation(
   ngModule,
-  EnvironmentVariablesFieldset,
+  withControlledInput(EnvironmentVariablesFieldset, { values: 'onChange' }),
   'environmentVariablesFieldset',
-  [],
+  ['canUndoDelete'],
   envVarValidation
 );
 
 withFormValidation(
   ngModule,
-  EnvironmentVariablesPanel,
+  withControlledInput(EnvironmentVariablesPanel, { values: 'onChange' }),
   'environmentVariablesPanel',
   ['explanation', 'showHelpMessage', 'isFoldable'],
   envVarValidation

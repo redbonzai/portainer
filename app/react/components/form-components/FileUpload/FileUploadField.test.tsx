@@ -1,9 +1,9 @@
-import { fireEvent, render } from '@/react-tools/test-utils';
+import { fireEvent, render } from '@testing-library/react';
 
 import { FileUploadField } from './FileUploadField';
 
 test('render should make the file button clickable and fire onChange event after click', async () => {
-  const onClick = jest.fn();
+  const onClick = vi.fn();
   const { findByText, findByLabelText } = render(
     <FileUploadField
       title="test button"

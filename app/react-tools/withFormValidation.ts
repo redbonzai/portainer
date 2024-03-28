@@ -1,6 +1,6 @@
 import { IFormController, IComponentOptions, IModule } from 'angular';
 import { FormikErrors } from 'formik';
-import { SchemaOf } from 'yup';
+import { SchemaOf, object } from 'yup';
 import _ from 'lodash';
 import { ComponentType } from 'react';
 
@@ -16,6 +16,8 @@ interface FormFieldProps<TValue> {
 }
 
 type WithFormFieldProps<TProps, TValue> = TProps & FormFieldProps<TValue>;
+
+type ValidationResult<T> = FormikErrors<T> | undefined;
 
 /**
  * This utility function is used for wrapping React components with form validation.
@@ -40,7 +42,8 @@ export function withFormValidation<TProps, TValue, TData = never>(
   Component: ComponentType<WithFormFieldProps<TProps, TValue>>,
   componentName: string,
   propNames: PropNames<TProps>[],
-  schemaBuilder: (validationData?: TData) => SchemaOf<TValue>
+  schemaBuilder: (validationData?: TData) => SchemaOf<TValue>,
+  isPrimitive = false
 ) {
   const reactComponentName = `react${_.upperFirst(componentName)}`;
 
@@ -54,7 +57,8 @@ export function withFormValidation<TProps, TValue, TData = never>(
       createFormValidationComponent(
         reactComponentName,
         propNames,
-        schemaBuilder
+        schemaBuilder,
+        isPrimitive
       )
     );
 }
@@ -62,7 +66,8 @@ export function withFormValidation<TProps, TValue, TData = never>(
 export function createFormValidationComponent<TFormModel, TData = never>(
   componentName: string,
   propNames: Array<string>,
-  schemaBuilder: (validationData?: TData) => SchemaOf<TFormModel>
+  schemaBuilder: (validationData?: TData) => SchemaOf<TFormModel>,
+  isPrimitive = false
 ): IComponentOptions {
   const kebabName = _.kebabCase(componentName);
   const propsWithErrors = [...propNames, 'errors', 'values'];
@@ -76,7 +81,7 @@ export function createFormValidationComponent<TFormModel, TData = never>(
         on-change="($ctrl.handleChange)"
       ></${kebabName}>
     </ng-form>`,
-    controller: createFormValidatorController(schemaBuilder),
+    controller: createFormValidatorController(schemaBuilder, isPrimitive),
     bindings: Object.fromEntries(
       [...propsWithErrors, 'validationData', 'onChange'].map((p) => [p, '<'])
     ),
@@ -84,10 +89,11 @@ export function createFormValidationComponent<TFormModel, TData = never>(
 }
 
 function createFormValidatorController<TFormModel, TData = never>(
-  schemaBuilder: (validationData?: TData) => SchemaOf<TFormModel>
+  schemaBuilder: (validationData?: TData) => SchemaOf<TFormModel>,
+  isPrimitive = false
 ) {
   return class FormValidatorController {
-    errors?: FormikErrors<TFormModel> = {};
+    errors?: FormikErrors<TFormModel>;
 
     $async: <T>(fn: () => Promise<T>) => Promise<T>;
 
@@ -118,10 +124,8 @@ function createFormValidatorController<TFormModel, TData = never>(
       return this.$async(async () => {
         this.form?.$setValidity('form', true, this.form);
 
-        this.errors = await validateForm<TFormModel>(
-          () => schemaBuilder(this.validationData),
-          value
-        );
+        const schema = schemaBuilder(this.validationData);
+        this.errors = await validate<TFormModel>(schema, value, isPrimitive);
 
         if (this.errors && Object.keys(this.errors).length > 0) {
           this.form?.$setValidity('form', false, this.form);
@@ -129,10 +133,32 @@ function createFormValidatorController<TFormModel, TData = never>(
       });
     }
 
-    async $onChanges(changes: { values?: { currentValue: TFormModel } }) {
+    async $onChanges(changes: {
+      values?: { currentValue: TFormModel };
+      validationData?: { currentValue: TData };
+    }) {
       if (changes.values) {
         await this.runValidation(changes.values.currentValue);
       }
+      // also run validation if validationData changes
+      if (changes.validationData) {
+        await this.runValidation(this.values!);
+      }
     }
   };
+}
+
+async function validate<TFormModel>(
+  schema: SchemaOf<TFormModel>,
+  value: TFormModel,
+  isPrimitive: boolean
+): Promise<ValidationResult<TFormModel>> {
+  if (isPrimitive) {
+    const result = await validateForm<{ value: TFormModel }>(
+      () => object({ value: schema }),
+      { value }
+    );
+    return result?.value as ValidationResult<TFormModel>;
+  }
+  return validateForm<TFormModel>(() => schema, value);
 }

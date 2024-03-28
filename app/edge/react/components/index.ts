@@ -13,9 +13,9 @@ import { withUIRouter } from '@/react-tools/withUIRouter';
 import { EdgeGroupAssociationTable } from '@/react/edge/components/EdgeGroupAssociationTable';
 import { AssociatedEdgeEnvironmentsSelector } from '@/react/edge/components/AssociatedEdgeEnvironmentsSelector';
 import { EnvironmentsDatatable } from '@/react/edge/edge-stacks/ItemView/EnvironmentsDatatable';
-import { TemplateFieldset } from '@/react/edge/edge-stacks/CreateView/TemplateFieldset';
+import { TemplateFieldset } from '@/react/edge/edge-stacks/CreateView/TemplateFieldset/TemplateFieldset';
 
-export const componentsModule = angular
+const ngModule = angular
   .module('portainer.edge.react.components', [])
   .component(
     'edgeStackEnvironmentsDatatable',
@@ -103,5 +103,7 @@ export const componentsModule = angular
   )
   .component(
     'edgeStackCreateTemplateFieldset',
-    r2a(withReactQuery(TemplateFieldset), ['onChange', 'value', 'onChangeFile'])
-  ).name;
+    r2a(withReactQuery(TemplateFieldset), ['setValues', 'values', 'errors'])
+  );
+
+export const componentsModule = ngModule.name;

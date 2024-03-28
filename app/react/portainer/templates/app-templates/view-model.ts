@@ -1,4 +1,5 @@
 import _ from 'lodash';
+
 import { PorImageRegistryModel } from 'Docker/models/porImageRegistry';
 
 import { Pair } from '../../settings/types';
@@ -47,6 +48,8 @@ export class TemplateViewModel {
   Interactive!: boolean;
 
   RestartPolicy!: string;
+
+  Hosts!: string[];
 
   Labels!: Pair[];
 
@@ -112,6 +115,7 @@ function setTemplatesV2(this: TemplateViewModel, template: AppTemplate) {
     ? template.restart_policy
     : 'always';
   this.Labels = template.labels ? template.labels : [];
+  this.Hosts = template.hosts ? template.hosts : [];
   this.Env = templateEnv(template);
   this.Volumes = templateVolumes(template);
   this.Ports = templatePorts(template);
@@ -147,7 +151,7 @@ function templateVolumes(data: AppTemplate) {
   );
 }
 
-enum EnvVarType {
+export enum EnvVarType {
   PreSelected = 1,
   Text = 2,
   Select = 3,

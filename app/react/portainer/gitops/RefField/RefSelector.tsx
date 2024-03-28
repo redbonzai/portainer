@@ -1,7 +1,7 @@
 import { StackId } from '@/react/common/stacks/types';
 import { useGitRefs } from '@/react/portainer/gitops/queries/useGitRefs';
 
-import { Select } from '@@/form-components/Input';
+import { PortainerSelect } from '@@/form-components/PortainerSelect';
 
 import { getAuthentication } from '../utils';
 
@@ -13,17 +13,22 @@ export function RefSelector({
   onChange,
   isUrlValid,
   stackId,
+  createdFromCustomTemplateId,
+  inputId,
 }: {
   model: RefFieldModel;
   value: string;
   stackId?: StackId;
+  createdFromCustomTemplateId?: number;
   onChange: (value: string) => void;
   isUrlValid?: boolean;
+  inputId: string;
 }) {
   const creds = getAuthentication(model);
   const payload = {
     repository: model.RepositoryURL,
     stackId,
+    createdFromCustomTemplateId,
     tlsSkipVerify: model.TLSSkipVerify,
     ...creds,
   };
@@ -43,6 +48,11 @@ export function RefSelector({
           refs.unshift('refs/heads/main');
         }
 
+        if (refs.includes('refs/heads/master')) {
+          refs.splice(refs.indexOf('refs/heads/master'), 1);
+          refs.unshift('refs/heads/master');
+        }
+
         return refs.map((t: string) => ({
           value: t,
           label: t,
@@ -58,12 +68,12 @@ export function RefSelector({
   );
 
   return (
-    <Select
+    <PortainerSelect
+      inputId={inputId}
       value={value}
       options={refs || [{ value: 'refs/heads/main', label: 'refs/heads/main' }]}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => e && onChange(e)}
       data-cy="component-gitRefInput"
-      required
     />
   );
 }

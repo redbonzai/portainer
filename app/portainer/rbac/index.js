@@ -1,3 +1,4 @@
+import { AccessHeaders } from '../authorization-guard';
 import { rolesView } from './views/roles';
 import { accessViewer } from './components/access-viewer';
 import { accessViewerDatatable } from './components/access-viewer/access-viewer-datatable';
@@ -28,7 +29,8 @@ function config($stateRegistryProvider) {
       },
     },
     data: {
-      docs: '/admin/users/roles',
+      docs: '/admin/user/roles',
+      access: AccessHeaders.Admin,
     },
   };
 

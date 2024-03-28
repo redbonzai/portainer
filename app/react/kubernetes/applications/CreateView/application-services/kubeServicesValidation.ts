@@ -1,6 +1,6 @@
 import { SchemaOf, array, object, boolean, string, mixed, number } from 'yup';
 
-import { KubernetesApplicationPublishingTypes } from '@/kubernetes/models/application/models';
+import { nanNumberSchema } from '@/react-tools/yup-schemas';
 
 import { ServiceFormValues, ServicePort } from './types';
 import { prependWithSlash } from './utils';
@@ -46,11 +46,7 @@ export function kubeServicesValidation(
       Namespace: string(),
       Name: string(),
       StackName: string(),
-      Type: mixed().oneOf([
-        KubernetesApplicationPublishingTypes.CLUSTER_IP,
-        KubernetesApplicationPublishingTypes.NODE_PORT,
-        KubernetesApplicationPublishingTypes.LOAD_BALANCER,
-      ]),
+      Type: mixed().oneOf(['ClusterIP', 'NodePort', 'LoadBalancer']),
       ClusterIP: string(),
       ApplicationName: string(),
       ApplicationOwner: string(),
@@ -59,7 +55,7 @@ export function kubeServicesValidation(
       Selector: object(),
       Ports: array(
         object({
-          port: number()
+          port: nanNumberSchema('Service port number is required.')
             .required('Service port number is required.')
             .min(1, 'Service port number must be inside the range 1-65535.')
             .max(65535, 'Service port number must be inside the range 1-65535.')
@@ -91,7 +87,7 @@ export function kubeServicesValidation(
                 return duplicateServicePortCount <= 1;
               }
             ),
-          targetPort: number()
+          targetPort: nanNumberSchema('Container port number is required.')
             .required('Container port number is required.')
             .min(1, 'Container port number must be inside the range 1-65535.')
             .max(
@@ -116,8 +112,7 @@ export function kubeServicesValidation(
                 );
                 if (
                   matchingService === undefined ||
-                  matchingService.Type !==
-                    KubernetesApplicationPublishingTypes.NODE_PORT // ignore validation unless the service is of type nodeport
+                  matchingService.Type !== 'NodePort'
                 ) {
                   return true;
                 }
@@ -143,8 +138,7 @@ export function kubeServicesValidation(
 
                 if (
                   matchingService === undefined ||
-                  matchingService.Type !==
-                    KubernetesApplicationPublishingTypes.NODE_PORT // ignore validation unless the service is of type nodeport
+                  matchingService.Type !== 'NodePort'
                 ) {
                   return true;
                 }
@@ -163,8 +157,7 @@ export function kubeServicesValidation(
                 const formNodePortsWithoutCurrentService = formServices
                   .filter(
                     (formService) =>
-                      formService.Type ===
-                        KubernetesApplicationPublishingTypes.NODE_PORT &&
+                      formService.Type === 'NodePort' &&
                       formService.Name !== matchingService.Name
                   )
                   .flatMap((formService) => formService.Ports)
@@ -187,11 +180,7 @@ export function kubeServicesValidation(
                   context.parent as ServicePort,
                   formServices
                 );
-                if (
-                  !matchingService ||
-                  matchingService.Type !==
-                    KubernetesApplicationPublishingTypes.NODE_PORT
-                ) {
+                if (!matchingService || matchingService.Type !== 'NodePort') {
                   return true;
                 }
                 return nodePort >= 30000;
@@ -209,11 +198,7 @@ export function kubeServicesValidation(
                   context.parent as ServicePort,
                   formServices
                 );
-                if (
-                  !matchingService ||
-                  matchingService.Type !==
-                    KubernetesApplicationPublishingTypes.NODE_PORT
-                ) {
+                if (!matchingService || matchingService.Type !== 'NodePort') {
                   return true;
                 }
                 return nodePort <= 32767;

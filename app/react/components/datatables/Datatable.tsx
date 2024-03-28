@@ -58,6 +58,7 @@ export interface Props<D extends DefaultType> extends AutomationTestingProps {
   emptyContentLabel?: string;
   title?: string;
   titleIcon?: IconProps['icon'];
+  titleId?: string;
   initialTableState?: Partial<TableState>;
   isLoading?: boolean;
   description?: ReactNode;
@@ -78,6 +79,7 @@ export function Datatable<D extends DefaultType>({
   getRowId = defaultGetRowId,
   isRowSelectable = () => true,
   title,
+  titleId,
   titleIcon,
   emptyContentLabel,
   initialTableState = {},
@@ -167,11 +169,12 @@ export function Datatable<D extends DefaultType>({
   const selectedItems = selectedRowModel.rows.map((row) => row.original);
 
   return (
-    <Table.Container noWidget={noWidget}>
+    <Table.Container noWidget={noWidget} aria-label={title}>
       <DatatableHeader
         onSearchChange={handleSearchBarChange}
         searchValue={settings.search}
         title={title}
+        titleId={titleId}
         titleIcon={titleIcon}
         description={description}
         renderTableActions={() => renderTableActions(selectedItems)}
@@ -185,6 +188,7 @@ export function Datatable<D extends DefaultType>({
         isLoading={isLoading}
         onSortChange={handleSortChange}
         data-cy={dataCy}
+        aria-label={`${title} table`}
       />
 
       <DatatableFooter

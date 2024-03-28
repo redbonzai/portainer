@@ -2,13 +2,16 @@ package images
 
 import (
 	"net/http"
+	"strings"
 
-	"github.com/docker/docker/api/types"
+	"github.com/portainer/portainer/api/docker/client"
 	"github.com/portainer/portainer/api/http/handler/docker/utils"
 	"github.com/portainer/portainer/api/internal/set"
 	httperror "github.com/portainer/portainer/pkg/libhttp/error"
 	"github.com/portainer/portainer/pkg/libhttp/request"
 	"github.com/portainer/portainer/pkg/libhttp/response"
+
+	"github.com/docker/docker/api/types"
 )
 
 type ImageResponse struct {
@@ -47,6 +50,12 @@ func (handler *Handler) imagesList(w http.ResponseWriter, r *http.Request) *http
 		return httperror.InternalServerError("Unable to retrieve Docker images", err)
 	}
 
+	// Extract the node name from the custom transport
+	nodeNames := make(map[string]string)
+	if t, ok := cli.HTTPClient().Transport.(*client.NodeNameTransport); ok {
+		nodeNames = t.NodeNames()
+	}
+
 	withUsage, err := request.RetrieveBooleanQueryParameter(r, "withUsage", true)
 	if err != nil {
 		return httperror.BadRequest("Invalid query parameter: withUsage", err)
@@ -66,12 +75,19 @@ func (handler *Handler) imagesList(w http.ResponseWriter, r *http.Request) *http
 
 	imagesList := make([]ImageResponse, len(images))
 	for i, image := range images {
+		if (image.RepoTags == nil || len(image.RepoTags) == 0) && (image.RepoDigests != nil && len(image.RepoDigests) > 0) {
+			for _, repoDigest := range image.RepoDigests {
+				image.RepoTags = append(image.RepoTags, repoDigest[0:strings.Index(repoDigest, "@")]+":<none>")
+			}
+		}
+
 		imagesList[i] = ImageResponse{
-			Created: image.Created,
-			ID:      image.ID,
-			Size:    image.Size,
-			Tags:    image.RepoTags,
-			Used:    imageUsageSet.Contains(image.ID),
+			Created:  image.Created,
+			NodeName: nodeNames[image.ID],
+			ID:       image.ID,
+			Size:     image.Size,
+			Tags:     image.RepoTags,
+			Used:     imageUsageSet.Contains(image.ID),
 		}
 	}
 

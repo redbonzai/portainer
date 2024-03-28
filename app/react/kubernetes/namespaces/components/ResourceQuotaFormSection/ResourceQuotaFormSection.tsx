@@ -44,42 +44,56 @@ export function ResourceQuotaFormSection({
 
       <SwitchField
         data-cy="k8sNamespaceCreate-resourceAssignmentToggle"
-        disabled={enableResourceOverCommit}
+        disabled={!enableResourceOverCommit}
         label="Resource assignment"
         labelClass="col-sm-3 col-lg-2"
         fieldClass="pt-2"
-        checked={values.enabled || !!enableResourceOverCommit}
+        checked={values.enabled || !enableResourceOverCommit}
         onChange={(enabled) => onChange({ ...values, enabled })}
       />
 
-      {(values.enabled || !!enableResourceOverCommit) && (
+      {(values.enabled || !enableResourceOverCommit) && (
         <div className="pt-5">
           <div className="flex flex-row">
             <FormSectionTitle>Resource Limits</FormSectionTitle>
           </div>
+
+          {(!cpuLimit || !memoryLimit) && (
+            <FormError>
+              Not enough resources available in the cluster to apply a resource
+              reservation.
+            </FormError>
+          )}
+
           {/* keep the FormError component present, but invisible to avoid layout shift */}
-          <FormError
-            className={typeof errors === 'string' ? 'visible' : 'invisible'}
-          >
-            {/* 'error' keeps the formerror the exact same height while hidden so there is no layout shift */}
-            {typeof errors === 'string' ? errors : 'error'}
-          </FormError>
+          {cpuLimit && memoryLimit ? (
+            <FormError
+              className={typeof errors === 'string' ? 'visible' : 'invisible'}
+            >
+              {/* 'error' keeps the formerror the exact same height while hidden so there is no layout shift */}
+              {typeof errors === 'string' ? errors : 'error'}
+            </FormError>
+          ) : null}
+
           <FormControl
             className="flex flex-row"
             label="Memory limit (MB)"
             inputId="memory-limit"
           >
             <div className="col-xs-8">
-              <SliderWithInput
-                value={Number(values.memory) ?? 0}
-                onChange={(value) =>
-                  onChange({ ...values, memory: `${value}` })
-                }
-                max={memoryLimit}
-                step={128}
-                dataCy="k8sNamespaceCreate-memoryLimit"
-                visibleTooltip
-              />
+              {memoryLimit >= 0 && (
+                <SliderWithInput
+                  value={Number(values.memory) ?? 0}
+                  onChange={(value) =>
+                    onChange({ ...values, memory: `${value}` })
+                  }
+                  max={memoryLimit}
+                  step={128}
+                  dataCy="k8sNamespaceCreate-memoryLimit"
+                  visibleTooltip
+                  inputId="memory-limit"
+                />
+              )}
               {errors?.memory && (
                 <FormError className="pt-1">{errors.memory}</FormError>
               )}

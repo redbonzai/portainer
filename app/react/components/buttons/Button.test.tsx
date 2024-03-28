@@ -1,5 +1,5 @@
-import { fireEvent, render } from '@testing-library/react';
 import { PropsWithChildren } from 'react';
+import { fireEvent, render } from '@testing-library/react';
 
 import { Button, Props } from './Button';
 
@@ -26,7 +26,7 @@ function renderDefault({
 
 test('should display a Button component and allow onClick', async () => {
   const children = 'test label';
-  const onClick = jest.fn();
+  const onClick = vi.fn();
   const { findByText } = renderDefault({ children, onClick });
 
   const buttonLabel = await findByText(children);

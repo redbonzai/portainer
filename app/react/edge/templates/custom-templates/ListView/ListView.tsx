@@ -9,8 +9,8 @@ import { confirmDelete } from '@@/modals/confirm';
 
 export function ListView() {
   const templatesQuery = useCustomTemplates({
-    select(templates) {
-      return templates.filter((t) => t.EdgeTemplate);
+    params: {
+      edge: true,
     },
   });
   const deleteMutation = useDeleteTemplateMutation();
@@ -24,8 +24,9 @@ export function ListView() {
         onDelete={handleDelete}
         templateLinkParams={(template) => ({
           to: 'edge.stacks.new',
-          params: { templateId: template.Id },
+          params: { templateId: template.Id, templateType: 'custom' },
         })}
+        storageKey="edge-custom-templates"
       />
     </>
   );

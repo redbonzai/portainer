@@ -69,7 +69,8 @@ export function KubeCtlShell({ environmentId, onClose }: Props) {
       openTerminal();
     }
     function onMessage(e: MessageEvent) {
-      terminal.write(e.data);
+      const encoded = new TextEncoder().encode(e.data);
+      terminal.writeUtf8(encoded);
     }
     function onClose() {
       handleClose();

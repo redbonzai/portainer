@@ -4,6 +4,7 @@ import {
   SelectComponentsConfig,
 } from 'react-select';
 import _ from 'lodash';
+import { AriaAttributes } from 'react';
 
 import { AutomationTestingProps } from '@/types';
 
@@ -20,7 +21,9 @@ type Options<TValue> = OptionsOrGroups<
   GroupBase<Option<TValue>>
 >;
 
-interface SharedProps extends AutomationTestingProps {
+interface SharedProps
+  extends AutomationTestingProps,
+    Pick<AriaAttributes, 'aria-label'> {
   name?: string;
   inputId?: string;
   placeholder?: string;
@@ -28,6 +31,7 @@ interface SharedProps extends AutomationTestingProps {
   isClearable?: boolean;
   bindToBody?: boolean;
   isLoading?: boolean;
+  noOptionsMessage?: () => string;
 }
 
 interface MultiProps<TValue> extends SharedProps {
@@ -85,9 +89,14 @@ export function SingleSelect<TValue = string>({
   bindToBody,
   components,
   isLoading,
+  noOptionsMessage,
+  isMulti,
+  ...aria
 }: SingleProps<TValue>) {
   const selectedValue =
-    value || (typeof value === 'number' && value === 0)
+    value ||
+    (typeof value === 'number' && value === 0) ||
+    (typeof value === 'string' && value === '')
       ? _.first(findSelectedOptions<TValue>(options, value))
       : null;
 
@@ -108,6 +117,9 @@ export function SingleSelect<TValue = string>({
       menuPortalTarget={bindToBody ? document.body : undefined}
       components={components}
       isLoading={isLoading}
+      noOptionsMessage={noOptionsMessage}
+      // eslint-disable-next-line react/jsx-props-no-spreading
+      {...aria}
     />
   );
 }
@@ -148,6 +160,8 @@ export function MultiSelect<TValue = string>({
   bindToBody,
   components,
   isLoading,
+  noOptionsMessage,
+  ...aria
 }: Omit<MultiProps<TValue>, 'isMulti'>) {
   const selectedOptions = findSelectedOptions(options, value);
   return (
@@ -169,6 +183,9 @@ export function MultiSelect<TValue = string>({
       menuPortalTarget={bindToBody ? document.body : undefined}
       components={components}
       isLoading={isLoading}
+      noOptionsMessage={noOptionsMessage}
+      // eslint-disable-next-line react/jsx-props-no-spreading
+      {...aria}
     />
   );
 }

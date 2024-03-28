@@ -16,17 +16,19 @@ import { SidebarSection } from './SidebarSection';
 import { SidebarParent } from './SidebarItem/SidebarParent';
 
 interface Props {
+  isPureAdmin: boolean;
   isAdmin: boolean;
   isTeamLeader?: boolean;
 }
 
-export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
+export function SettingsSidebar({ isPureAdmin, isAdmin, isTeamLeader }: Props) {
   const teamSyncQuery = usePublicSettings<boolean>({
     select: (settings) => settings.TeamSync,
   });
 
-  const showUsersSection =
-    !window.ddExtension && (isAdmin || (isTeamLeader && !teamSyncQuery.data));
+  const isPureAdminOrTeamLeader =
+    isPureAdmin || (isTeamLeader && !teamSyncQuery.data && !isAdmin);
+  const showUsersSection = !window.ddExtension && isPureAdminOrTeamLeader;
 
   return (
     <SidebarSection title="Administration">
@@ -37,6 +39,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
           to="portainer.users"
           pathOptions={{ includePaths: ['portainer.teams', 'portainer.roles'] }}
           data-cy="portainerSidebar-userRelated"
+          listId="portainerSidebar-userRelated"
         >
           <SidebarItem
             to="portainer.users"
@@ -51,7 +54,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
             data-cy="portainerSidebar-teams"
           />
 
-          {isAdmin && (
+          {isPureAdmin && (
             <SidebarItem
               to="portainer.roles"
               label="Roles"
@@ -61,7 +64,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
           )}
         </SidebarParent>
       )}
-      {isAdmin && (
+      {isPureAdmin && (
         <>
           <SidebarParent
             label="Environment-related"
@@ -74,7 +77,8 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
                 'portainer.tags',
               ],
             }}
-            data-cy="k8sSidebar-networking"
+            data-cy="portainerSidebar-environments-area"
+            listId="portainer-environments"
           >
             <SidebarItem
               label="Environments"
@@ -123,6 +127,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
               includePaths: ['portainer.activityLogs'],
             }}
             data-cy="k8sSidebar-logs"
+            listId="k8sSidebar-logs"
           >
             <SidebarItem
               label="Authentication"
@@ -139,18 +144,31 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
           </SidebarParent>
         </>
       )}
+      {isBE && !isPureAdmin && isAdmin && (
+        <SidebarParent
+          label="Environment-related"
+          icon={HardDrive}
+          to="portainer.endpoints.updateSchedules"
+          data-cy="portainerSidebar-environments-area"
+          listId="portainer-environments-area"
+        >
+          <EdgeUpdatesSidebarItem />
+        </SidebarParent>
+      )}
+
       <SidebarItem
         to="portainer.notifications"
         icon={Bell}
         label="Notifications"
         data-cy="portainerSidebar-notifications"
       />
-      {isAdmin && (
+      {isPureAdmin && (
         <SidebarParent
           to="portainer.settings"
           label="Settings"
           icon={Settings}
           data-cy="portainerSidebar-settings"
+          listId="portainer-settings"
         >
           <SidebarItem
             to="portainer.settings"
@@ -158,6 +176,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
             isSubMenu
             ignorePaths={[
               'portainer.settings.authentication',
+              'portainer.settings.sharedcredentials',
               'portainer.settings.edgeCompute',
             ]}
             data-cy="portainerSidebar-generalSettings"
@@ -178,6 +197,7 @@ export function SettingsSidebar({ isAdmin, isTeamLeader }: Props) {
               data-cy="portainerSidebar-cloud"
             />
           )}
+
           <SidebarItem
             to="portainer.settings.edgeCompute"
             label="Edge Compute"

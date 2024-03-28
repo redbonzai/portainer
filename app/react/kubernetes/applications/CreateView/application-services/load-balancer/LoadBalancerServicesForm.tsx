@@ -1,8 +1,7 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { FormikErrors } from 'formik';
 
-import { KubernetesApplicationPublishingTypes } from '@/kubernetes/models/application/models';
-import { useCurrentUser } from '@/react/hooks/useUser';
+import { useIsEdgeAdmin } from '@/react/hooks/useUser';
 import { useEnvironment } from '@/react/portainer/environments/queries';
 import { useEnvironmentId } from '@/react/hooks/useEnvironmentId';
 
@@ -40,7 +39,8 @@ export function LoadBalancerServicesForm({
   namespace,
   isEditMode,
 }: Props) {
-  const { isAdmin } = useCurrentUser();
+  const isAdminQuery = useIsEdgeAdmin();
+
   const environmentId = useEnvironmentId();
   const { data: loadBalancerEnabled, ...loadBalancerEnabledQuery } =
     useEnvironment(
@@ -48,9 +48,14 @@ export function LoadBalancerServicesForm({
       (environment) => environment?.Kubernetes.Configuration.UseLoadBalancer
     );
 
+  if (isAdminQuery.isLoading) {
+    return null;
+  }
+
+  const { isAdmin } = isAdminQuery;
+
   const loadBalancerServiceCount = services.filter(
-    (service) =>
-      service.Type === KubernetesApplicationPublishingTypes.LOAD_BALANCER
+    (service) => service.Type === 'LoadBalancer'
   ).length;
   return (
     <Card className="pb-5">
@@ -95,8 +100,7 @@ export function LoadBalancerServicesForm({
         {loadBalancerServiceCount > 0 && (
           <div className="flex w-full flex-col gap-4">
             {services.map((service, index) =>
-              service.Type ===
-              KubernetesApplicationPublishingTypes.LOAD_BALANCER ? (
+              service.Type === 'LoadBalancer' ? (
                 <LoadBalancerServiceForm
                   key={index}
                   serviceName={service.Name}
@@ -131,8 +135,7 @@ export function LoadBalancerServicesForm({
                 services.length + 1,
                 services
               );
-              newService.Type =
-                KubernetesApplicationPublishingTypes.LOAD_BALANCER;
+              newService.Type = 'LoadBalancer';
               const newServicePort = newPort(newService.Name);
               newService.Ports = [newServicePort];
               newService.Selector = selector;

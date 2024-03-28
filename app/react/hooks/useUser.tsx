@@ -7,10 +7,13 @@ import {
   PropsWithChildren,
 } from 'react';
 
-import { isAdmin } from '@/portainer/users/user.helpers';
+import { isEdgeAdmin, isPureAdmin } from '@/portainer/users/user.helpers';
 import { EnvironmentId } from '@/react/portainer/environments/types';
 import { User } from '@/portainer/users/types';
 import { useLoadCurrentUser } from '@/portainer/users/queries/useLoadCurrentUser';
+
+import { useEnvironment } from '../portainer/environments/queries';
+import { isBE } from '../portainer/feature-flags/feature-flags.service';
 
 interface State {
   user?: User;
@@ -39,32 +42,92 @@ export function useCurrentUser() {
   return useMemo(
     () => ({
       user,
-      isAdmin: isAdmin(user),
+      isPureAdmin: isPureAdmin(user),
     }),
     [user]
   );
 }
 
+export function useIsPureAdmin() {
+  const { isPureAdmin } = useCurrentUser();
+  return isPureAdmin;
+}
+
+/**
+ * Load the admin status of the user, (admin >= edge admin)
+ * @param forceEnvironmentId to force the environment id, used where the environment id can't be loaded from the router, like sidebar
+ * @returns query result with isLoading and isAdmin - isAdmin is true if the user edge admin or admin.
+ */
+export function useIsEdgeAdmin({
+  forceEnvironmentId,
+  noEnvScope,
+}: {
+  forceEnvironmentId?: EnvironmentId;
+  noEnvScope?: boolean;
+} = {}) {
+  const { user } = useCurrentUser();
+  const {
+    params: { endpointId },
+  } = useCurrentStateAndParams();
+
+  const envId = forceEnvironmentId || endpointId;
+  const envScope = typeof noEnvScope === 'boolean' ? !noEnvScope : !!envId;
+  const envQuery = useEnvironment(envScope ? envId : undefined);
+
+  if (!envScope) {
+    return { isLoading: false, isAdmin: isEdgeAdmin(user) };
+  }
+
+  if (envQuery.isLoading) {
+    return { isLoading: true, isAdmin: false };
+  }
+
+  return {
+    isLoading: false,
+    isAdmin: isEdgeAdmin(user, envQuery.data),
+  };
+}
+
+/**
+ * Check if the user has some of the authorizations
+ *
+ * @param authorizations a list of authorizations to check
+ * @param forceEnvironmentId to force the environment id, used where the environment id can't be loaded from the router, like sidebar
+ * @param adminOnlyCE if true, will return false if the user is not an admin in CE
+ * @returns query result with isLoading and authorized - authorized is true if the user has some of the authorizations
+ */
 export function useAuthorizations(
   authorizations: string | string[],
   forceEnvironmentId?: EnvironmentId,
   adminOnlyCE = false
 ) {
-  const { user } = useUser();
+  const { user } = useCurrentUser();
   const {
     params: { endpointId },
   } = useCurrentStateAndParams();
+  const envQuery = useEnvironment(forceEnvironmentId || endpointId);
+  const isAdminQuery = useIsEdgeAdmin({ forceEnvironmentId });
 
   if (!user) {
-    return false;
+    return { authorized: false, isLoading: false };
   }
 
-  return hasAuthorizations(
-    user,
-    authorizations,
-    forceEnvironmentId || endpointId,
-    adminOnlyCE
-  );
+  if (envQuery.isLoading || isAdminQuery.isLoading) {
+    return { authorized: false, isLoading: true };
+  }
+
+  if (isAdminQuery.isAdmin) {
+    return { authorized: true, isLoading: false };
+  }
+
+  if (!isBE && adminOnlyCE) {
+    return { authorized: false, isLoading: false };
+  }
+
+  return {
+    authorized: hasAuthorizations(user, authorizations, envQuery.data?.Id),
+    isLoading: false,
+  };
 }
 
 export function useIsEnvironmentAdmin({
@@ -81,25 +144,20 @@ export function useIsEnvironmentAdmin({
   );
 }
 
-export function isEnvironmentAdmin(
-  user: User,
-  environmentId: EnvironmentId,
-  adminOnlyCE = true
-) {
-  return hasAuthorizations(
-    user,
-    ['EndpointResourcesAccess'],
-    environmentId,
-    adminOnlyCE
-  );
-}
-
+/**
+ * will return true if the user has some of the authorizations. assumes the user is authenticated and not an admin
+ *
+ * @private Please use `useAuthorizations` instead. Exported only for angular's authentication service app/portainer/services/authentication.js:154
+ */
 export function hasAuthorizations(
   user: User,
   authorizations: string | string[],
-  environmentId?: EnvironmentId,
-  adminOnlyCE = false
+  environmentId?: EnvironmentId
 ) {
+  if (!isBE) {
+    return true;
+  }
+
   const authorizationsArray =
     typeof authorizations === 'string' ? [authorizations] : authorizations;
 
@@ -107,26 +165,13 @@ export function hasAuthorizations(
     return true;
   }
 
-  if (process.env.PORTAINER_EDITION === 'CE') {
-    return !adminOnlyCE || isAdmin(user);
-  }
-
   if (!environmentId) {
     return false;
   }
 
-  if (isAdmin(user)) {
-    return true;
-  }
+  const userEndpointAuthorizations =
+    user.EndpointAuthorizations?.[environmentId] || [];
 
-  if (
-    !user.EndpointAuthorizations ||
-    !user.EndpointAuthorizations[environmentId]
-  ) {
-    return false;
-  }
-
-  const userEndpointAuthorizations = user.EndpointAuthorizations[environmentId];
   return authorizationsArray.some(
     (authorization) => userEndpointAuthorizations[authorization]
   );
@@ -146,13 +191,13 @@ export function Authorized({
   children,
   childrenUnauthorized = null,
 }: PropsWithChildren<AuthorizedProps>) {
-  const isAllowed = useAuthorizations(
+  const { authorized } = useAuthorizations(
     authorizations,
     environmentId,
     adminOnlyCE
   );
 
-  return isAllowed ? <>{children}</> : <>{childrenUnauthorized}</>;
+  return authorized ? <>{children}</> : <>{childrenUnauthorized}</>;
 }
 
 interface UserProviderProps {

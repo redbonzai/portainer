@@ -1,8 +1,6 @@
 package dataservices
 
 import (
-	"io"
-
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/database/models"
 )
@@ -46,7 +44,7 @@ type (
 		MigrateData() error
 		Rollback(force bool) error
 		CheckCurrentEdition() error
-		BackupTo(w io.Writer) error
+		Backup(path string) (string, error)
 		Export(filename string) (err error)
 
 		DataStoreTx
@@ -152,7 +150,7 @@ type (
 	APIKeyRepository interface {
 		BaseCRUD[portainer.APIKey, portainer.APIKeyID]
 		GetAPIKeysByUserID(userID portainer.UserID) ([]portainer.APIKey, error)
-		GetAPIKeyByDigest(digest []byte) (*portainer.APIKey, error)
+		GetAPIKeyByDigest(digest string) (*portainer.APIKey, error)
 	}
 
 	// SettingsService represents a service for managing application settings

@@ -1,9 +1,9 @@
-import { render } from '@/react-tools/test-utils';
+import { render } from '@testing-library/react';
 
 import { FileUploadForm } from './FileUploadForm';
 
 test('render should include description', async () => {
-  const onClick = jest.fn();
+  const onClick = vi.fn();
   const { findByText } = render(
     <FileUploadForm
       title="test button"

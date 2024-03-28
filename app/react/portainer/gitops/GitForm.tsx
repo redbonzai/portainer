@@ -1,5 +1,6 @@
 import { array, boolean, object, SchemaOf, string } from 'yup';
 import { FormikErrors } from 'formik';
+import { useState } from 'react';
 
 import { ComposePathField } from '@/react/portainer/gitops/ComposePathField';
 import { RefField } from '@/react/portainer/gitops/RefField';
@@ -32,10 +33,11 @@ interface Props {
   baseWebhookUrl?: string;
   webhookId?: string;
   webhooksDocs?: string;
+  createdFromCustomTemplateId?: number;
 }
 
 export function GitForm({
-  value,
+  value: initialValue,
   onChange,
   environmentType = 'DOCKER',
   deployMethod = 'compose',
@@ -47,7 +49,10 @@ export function GitForm({
   baseWebhookUrl,
   webhookId,
   webhooksDocs,
+  createdFromCustomTemplateId,
 }: Props) {
+  const [value, setValue] = useState(initialValue); // TODO: remove this state when form is not inside angularjs
+
   return (
     <FormSection title="Git repository">
       <AuthFieldset
@@ -64,6 +69,7 @@ export function GitForm({
           handleChange({ RepositoryURLValid: value })
         }
         model={value}
+        createdFromCustomTemplateId={createdFromCustomTemplateId}
         errors={errors.RepositoryURL}
       />
 
@@ -73,6 +79,7 @@ export function GitForm({
         model={value}
         error={errors.RepositoryReferenceName}
         isUrlValid={value.RepositoryURLValid}
+        createdFromCustomTemplateId={createdFromCustomTemplateId}
       />
 
       <ComposePathField
@@ -84,6 +91,7 @@ export function GitForm({
         model={value}
         isDockerStandalone={isDockerStandalone}
         errors={errors.ComposeFilePathInRepository}
+        createdFromCustomTemplateId={createdFromCustomTemplateId}
       />
 
       {isAdditionalFilesFieldVisible && (
@@ -126,21 +134,24 @@ export function GitForm({
 
   function handleChange(partialValue: Partial<GitFormModel>) {
     onChange(partialValue);
+    setValue((value) => ({ ...value, ...partialValue }));
   }
 }
 
 export async function validateGitForm(
   gitCredentials: Array<GitCredential>,
-  formValues: GitFormModel
+  formValues: GitFormModel,
+  isCreatedFromCustomTemplate: boolean
 ) {
   return validateForm<GitFormModel>(
-    () => buildGitValidationSchema(gitCredentials),
+    () => buildGitValidationSchema(gitCredentials, isCreatedFromCustomTemplate),
     formValues
   );
 }
 
 export function buildGitValidationSchema(
-  gitCredentials: Array<GitCredential>
+  gitCredentials: Array<GitCredential>,
+  isCreatedFromCustomTemplate: boolean
 ): SchemaOf<GitFormModel> {
   return object({
     RepositoryURL: string()
@@ -165,5 +176,7 @@ export function buildGitValidationSchema(
     RepositoryURLValid: boolean().default(false),
     AutoUpdate: autoUpdateValidation().nullable(),
     TLSSkipVerify: boolean().default(false),
-  }).concat(gitAuthValidation(gitCredentials, false)) as SchemaOf<GitFormModel>;
+  }).concat(
+    gitAuthValidation(gitCredentials, false, isCreatedFromCustomTemplate)
+  ) as SchemaOf<GitFormModel>;
 }

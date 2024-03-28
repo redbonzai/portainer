@@ -1,6 +1,6 @@
 import { FormikErrors } from 'formik';
 
-import { useUser } from '@/react/hooks/useUser';
+import { useIsEdgeAdmin } from '@/react/hooks/useUser';
 
 import { FormSectionTitle } from '@@/form-components/FormSectionTitle';
 import { SwitchField } from '@@/form-components/SwitchField';
@@ -26,7 +26,13 @@ export function AccessControlForm({
   errors,
   environmentId,
 }: Props) {
-  const { isAdmin } = useUser();
+  const isAdminQuery = useIsEdgeAdmin();
+
+  if (isAdminQuery.isLoading) {
+    return null;
+  }
+
+  const { isAdmin } = isAdminQuery;
 
   const accessControlEnabled =
     values.ownership !== ResourceControlOwnership.PUBLIC;
@@ -37,7 +43,7 @@ export function AccessControlForm({
       <div className="form-group">
         <div className="col-sm-12">
           <SwitchField
-            dataCy="portainer-accessMgmtToggle"
+            data-cy="portainer-accessMgmtToggle"
             checked={accessControlEnabled}
             name={withNamespace('accessControlEnabled')}
             label="Enable access control"

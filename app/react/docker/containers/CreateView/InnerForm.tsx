@@ -41,7 +41,7 @@ export function InnerForm({
   const environmentId = useEnvironmentId();
   const [tab, setTab] = useState('commands');
   const apiVersion = useApiVersion(environmentId);
-  const isEnvironmentAdmin = useIsEnvironmentAdmin();
+  const isEnvironmentAdminQuery = useIsEnvironmentAdmin({ adminOnlyCE: true });
   const envQuery = useCurrentEnvironment();
 
   if (!envQuery.data) {
@@ -102,7 +102,7 @@ export function InnerForm({
                             }
                             errors={errors.volumes}
                             allowBindMounts={
-                              isEnvironmentAdmin ||
+                              isEnvironmentAdminQuery.authorized ||
                               environment.SecuritySettings
                                 .allowBindMountsForRegularUsers
                             }
@@ -166,18 +166,18 @@ export function InnerForm({
                               setFieldValue(`resources.${field}`, value)
                             }
                             allowPrivilegedMode={
-                              isEnvironmentAdmin ||
+                              isEnvironmentAdminQuery.authorized ||
                               environment.SecuritySettings
                                 .allowPrivilegedModeForRegularUsers
                             }
                             isDevicesFieldVisible={
-                              isEnvironmentAdmin ||
+                              isEnvironmentAdminQuery.authorized ||
                               environment.SecuritySettings
                                 .allowDeviceMappingForRegularUsers
                             }
                             isInitFieldVisible={apiVersion >= 1.37}
                             isSysctlFieldVisible={
-                              isEnvironmentAdmin ||
+                              isEnvironmentAdminQuery.authorized ||
                               environment.SecuritySettings
                                 .allowSysctlSettingForRegularUsers
                             }
@@ -186,13 +186,13 @@ export function InnerForm({
                                 ? (values) => (
                                     <EditResourcesForm
                                       initialValues={values}
-                                      redeploy={(values) => {
+                                      onChange={(values) => {
                                         setFieldValue(
                                           'resources.resources',
                                           values
                                         );
-                                        return submitForm();
                                       }}
+                                      redeploy={submitForm}
                                       isImageInvalid={!!errors?.image}
                                     />
                                   )
