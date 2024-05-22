@@ -1,11 +1,10 @@
 import angular from 'angular';
 
 import { AccessHeaders } from '@/portainer/authorization-guard';
-import edgeStackModule from './views/edge-stacks';
 import { reactModule } from './react';
 
 angular
-  .module('portainer.edge', [edgeStackModule, reactModule])
+  .module('portainer.edge', [reactModule])
 
   .config(function config($stateRegistryProvider) {
     const edge = {
@@ -69,7 +68,7 @@ angular
       url: '/new?templateId&templateType',
       views: {
         'content@': {
-          component: 'createEdgeStackView',
+          component: 'edgeStacksCreateView',
         },
       },
       data: {
@@ -82,7 +81,7 @@ angular
       url: '/:stackId?tab&status',
       views: {
         'content@': {
-          component: 'editEdgeStackView',
+          component: 'edgeStacksItemView',
         },
       },
       params: {
@@ -154,7 +153,7 @@ angular
       url: '/templates?template',
       views: {
         'content@': {
-          component: 'edgeAppTemplatesView',
+          component: 'appTemplatesView',
         },
       },
       data: {

@@ -1,6 +1,10 @@
+import { Box } from 'lucide-react';
+
 import { Datatable as GenericDatatable } from '@@/datatables';
 import { createPersistedStore } from '@@/datatables/types';
 import { useTableState } from '@@/datatables/useTableState';
+
+import { WaitingRoomEnvironment } from '../types';
 
 import { columns } from './columns';
 import { Filter } from './Filter';
@@ -26,11 +30,12 @@ export function Datatable() {
   });
 
   return (
-    <GenericDatatable
+    <GenericDatatable<WaitingRoomEnvironment>
       settingsManager={tableState}
       columns={columns}
       dataset={environments}
       title="Edge Devices Waiting Room"
+      titleIcon={Box}
       emptyContentLabel="No Edge Devices found"
       renderTableActions={(selectedRows) => (
         <TableActions selectedRows={selectedRows} />
@@ -41,6 +46,7 @@ export function Datatable() {
       onPageChange={setPage}
       totalCount={totalCount}
       description={<Filter />}
+      data-cy="edge-devices-waiting-room-datatable"
     />
   );
 }

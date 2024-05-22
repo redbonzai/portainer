@@ -2,13 +2,13 @@ package endpoints
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
 
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/dataservices"
-	httperrors "github.com/portainer/portainer/api/http/errors"
 	"github.com/portainer/portainer/api/internal/endpointutils"
 	httperror "github.com/portainer/portainer/pkg/libhttp/error"
 	"github.com/portainer/portainer/pkg/libhttp/request"
@@ -16,6 +16,27 @@ import (
 
 	"github.com/rs/zerolog/log"
 )
+
+type DeleteMultiplePayload struct {
+	Endpoints []struct {
+		ID            int    `json:"id"`
+		Name          string `json:"name"`
+		DeleteCluster bool   `json:"deleteCluster"`
+	} `json:"environments"`
+}
+
+func (payload *DeleteMultiplePayload) Validate(r *http.Request) error {
+	if payload == nil || len(payload.Endpoints) == 0 {
+		return fmt.Errorf("invalid request payload; you must provide a list of nodes to delete")
+	}
+
+	return nil
+}
+
+type DeleteMultipleResp struct {
+	Name string `json:"name"`
+	Err  error  `json:"err"`
+}
 
 // @id EndpointDelete
 // @summary Remove an environment(endpoint)
@@ -31,6 +52,8 @@ import (
 // @failure 404 "Environment(Endpoint) not found"
 // @failure 500 "Server error"
 // @router /endpoints/{id} [delete]
+// @deprecated
+// Deprecated: use endpointDeleteMultiple instead.
 func (handler *Handler) endpointDelete(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
 	endpointID, err := request.RetrieveNumericRouteVariableValue(r, "id")
 	if err != nil {
@@ -41,10 +64,6 @@ func (handler *Handler) endpointDelete(w http.ResponseWriter, r *http.Request) *
 	deleteCluster, err := request.RetrieveBooleanQueryParameter(r, "deleteCluster", true)
 	if err != nil {
 		return httperror.BadRequest("Invalid boolean query parameter", err)
-	}
-
-	if handler.demoService.IsDemoEnvironment(portainer.EndpointID(endpointID)) {
-		return httperror.Forbidden(httperrors.ErrNotAvailableInDemo.Error(), httperrors.ErrNotAvailableInDemo)
 	}
 
 	err = handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
@@ -60,6 +79,51 @@ func (handler *Handler) endpointDelete(w http.ResponseWriter, r *http.Request) *
 	}
 
 	return response.Empty(w)
+}
+
+// @id EndpointDeleteMultiple
+// @summary Remove multiple environment(endpoint)s
+// @description Remove multiple environment(endpoint)s.
+// @description **Access policy**: administrator
+// @tags endpoints
+// @security ApiKeyAuth
+// @security jwt
+// @accept json
+// @produce json
+// @param body body DeleteMultiplePayload true "List of endpoints to delete"
+// @success 204 "Success"
+// @failure 400 "Invalid request"
+// @failure 403 "Permission denied"
+// @failure 404 "Environment(Endpoint) not found"
+// @failure 500 "Server error"
+// @router /endpoints/remove [post]
+func (handler *Handler) endpointDeleteMultiple(w http.ResponseWriter, r *http.Request) *httperror.HandlerError {
+	var p DeleteMultiplePayload
+	if err := request.DecodeAndValidateJSONPayload(r, &p); err != nil {
+		return httperror.BadRequest("Invalid request payload", err)
+	}
+
+	var resps []DeleteMultipleResp
+
+	err := handler.DataStore.UpdateTx(func(tx dataservices.DataStoreTx) error {
+		for _, e := range p.Endpoints {
+			// Attempt deletion.
+			err := handler.deleteEndpoint(
+				tx,
+				portainer.EndpointID(e.ID),
+				e.DeleteCluster,
+			)
+
+			resps = append(resps, DeleteMultipleResp{Name: e.Name, Err: err})
+		}
+
+		return nil
+	})
+	if err != nil {
+		return httperror.InternalServerError("Unable to delete environments", err)
+	}
+
+	return response.JSON(w, resps)
 }
 
 func (handler *Handler) deleteEndpoint(tx dataservices.DataStoreTx, endpointID portainer.EndpointID, deleteCluster bool) error {
@@ -177,6 +241,12 @@ func (handler *Handler) deleteEndpoint(tx dataservices.DataStoreTx, endpointID p
 				}
 			}
 		}
+	}
+
+	// delete the pending actions
+	err = tx.PendingActions().DeleteByEndpointID(endpoint.ID)
+	if err != nil {
+		log.Warn().Err(err).Int("endpointId", int(endpoint.ID)).Msgf("Unable to delete pending actions")
 	}
 
 	err = tx.Endpoint().DeleteEndpoint(portainer.EndpointID(endpointID))

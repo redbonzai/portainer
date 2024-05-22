@@ -2,6 +2,7 @@ import { PropsWithChildren, useEffect, useMemo } from 'react';
 import { useTransitionHook } from '@uirouter/react';
 
 import { BROWSER_OS_PLATFORM } from '@/react/constants';
+import { AutomationTestingProps } from '@/types';
 
 import { CodeEditor } from '@@/CodeEditor';
 import { Tooltip } from '@@/Tip/Tooltip';
@@ -15,7 +16,7 @@ import { buildConfirmButton } from './modals/utils';
 const otherEditorConfig = {
   tooltip: (
     <>
-      <div>CtrlF - Start searching</div>
+      <div>Ctrl+F - Start searching</div>
       <div>Ctrl+G - Find next</div>
       <div>Ctrl+Shift+G - Find previous</div>
       <div>Ctrl+Shift+F - Replace</div>
@@ -51,7 +52,7 @@ export const editorConfig = {
   win: otherEditorConfig,
 } as const;
 
-interface Props {
+interface Props extends AutomationTestingProps {
   value: string;
   onChange: (value: string) => void;
 
@@ -62,6 +63,8 @@ interface Props {
   titleContent?: React.ReactNode;
   hideTitle?: boolean;
   error?: string;
+  versions?: number[];
+  onVersionChange?: (version: number) => void;
   height?: string;
 }
 
@@ -76,7 +79,10 @@ export function WebEditorForm({
   yaml,
   children,
   error,
+  versions,
+  onVersionChange,
   height,
+  'data-cy': dataCy,
 }: PropsWithChildren<Props>) {
   return (
     <div>
@@ -104,7 +110,10 @@ export function WebEditorForm({
               yaml={yaml}
               value={value}
               onChange={onChange}
+              versions={versions}
+              onVersionChange={(v) => onVersionChange && onVersionChange(v)}
               height={height}
+              data-cy={dataCy}
             />
           </div>
         </div>

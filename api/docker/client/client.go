@@ -13,7 +13,7 @@ import (
 	portainer "github.com/portainer/portainer/api"
 	"github.com/portainer/portainer/api/crypto"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/segmentio/encoding/json"
 )
@@ -93,11 +93,17 @@ func createTCPClient(endpoint *portainer.Endpoint, timeout *time.Duration) (*cli
 		return nil, err
 	}
 
-	return client.NewClientWithOpts(
+	opts := []client.Opt{
 		client.WithHost(endpoint.URL),
 		client.WithAPIVersionNegotiation(),
 		client.WithHTTPClient(httpCli),
-	)
+	}
+
+	if nnTransport, ok := httpCli.Transport.(*NodeNameTransport); ok && nnTransport.TLSClientConfig != nil {
+		opts = append(opts, client.WithScheme("https"))
+	}
+
+	return client.NewClientWithOpts(opts...)
 }
 
 func createAgentClient(endpoint *portainer.Endpoint, endpointURL string, signatureService portainer.DigitalSignatureService, nodeName string, timeout *time.Duration) (*client.Client, error) {
@@ -159,7 +165,7 @@ func (t *NodeNameTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
 	var rs []struct {
-		types.ImageSummary
+		image.Summary
 		Portainer struct {
 			Agent struct {
 				NodeName string
